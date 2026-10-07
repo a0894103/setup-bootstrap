@@ -784,9 +784,13 @@ const server = http.createServer(async (req, res) => {
           if (!fs.existsSync(exe)) return sendJson(res, 409, { error: '找不到程式：' + exe });
           spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
         } else if (target.appxName) {
-          // MSIX app: start through shell:AppsFolder with its package family name and app id
-          const ps = "$p = Get-AppxPackage -Name '" + target.appxName + "' | Select-Object -First 1; $id = (Get-AppxPackageManifest $p).Package.Applications.Application.Id | Select-Object -First 1; Start-Process ('shell:AppsFolder\\' + $p.PackageFamilyName + '!' + $id)";
-          spawn('powershell.exe', ['-NoProfile', '-Command', ps], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+          // MSIX app: look up "<PackageFamilyName>!<AppId>" first, then let Explorer start it (no nested quoting)
+          const q = "$p = Get-AppxPackage -Name '" + target.appxName + "' | Select-Object -First 1; if ($p) { $id = @((Get-AppxPackageManifest $p).Package.Applications.Application.Id)[0]; $p.PackageFamilyName + '!' + $id }";
+          const aumid = await new Promise((resolve) => {
+            execFile('powershell.exe', ['-NoProfile', '-Command', q], { timeout: 20000, windowsHide: true }, (err, stdout) => resolve(String(stdout || '').trim()));
+          });
+          if (!aumid || !aumid.includes('!')) return sendJson(res, 409, { error: '找不到已安裝的 ' + target.label });
+          spawn('explorer.exe', ['shell:AppsFolder\\' + aumid], { detached: true, stdio: 'ignore' }).unref();
         } else {
           return sendJson(res, 400, { error: 'No launch method' });
         }
