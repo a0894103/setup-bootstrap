@@ -153,9 +153,13 @@ Step 'AutoPull task' { [bool](Get-ScheduledTask -TaskName 'AI_AGENT_ULTRA_AutoPu
 }
 }
 
+if (-not (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\package-lock.json')) {
+  Log '[wait] npm packages: repo not pulled yet (setup console > pull AI_AGENT_ULTRA runs npm ci)'
+  [void]$results.Add([pscustomobject]@{ Step = 'npm packages (playwright)'; Result = 'WAIT-repo'; Seconds = 0 }); Save-Results
+} else {
 Step 'npm packages (playwright)' { Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\node_modules\playwright\package.json' } {
-  if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\package-lock.json') { Push-Location 'C:\WORK\AI\AI_AGENT_ULTRA'; & 'C:\WORK\TOOLS\nodejs\npm.cmd' ci --no-audit --no-fund 2>&1 | ForEach-Object { Log "  $_" }; Pop-Location }
-  else { Log '  repo not cloned yet (needs gh login); re-run after pulling' }
+  Push-Location 'C:\WORK\AI\AI_AGENT_ULTRA'; & 'C:\WORK\TOOLS\nodejs\npm.cmd' ci --no-audit --no-fund 2>&1 | ForEach-Object { Log "  $_" }; Pop-Location
+}
 }
 # ---------- SOP 1: user ----------
 if ($Roles -contains 'user' -or $Roles -contains 'dev') {

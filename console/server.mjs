@@ -710,6 +710,10 @@ const server = http.createServer(async (req, res) => {
             const ap = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', task], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
             ap.stdout.on('data', d => appendJobOutput(job, config.stateDir, d));
             ap.stderr.on('data', d => appendJobOutput(job, config.stateDir, d));
+            // npm ci so tools that need playwright work right after the pull
+            const npm = spawn('cmd.exe', ['/d', '/s', '/c', 'C:\\WORK\\TOOLS\\nodejs\\npm.cmd ci --no-audit --no-fund'], { cwd: config.repoDir, windowsHide: true, windowsVerbatimArguments: true, stdio: ['ignore', 'pipe', 'pipe'] });
+            npm.stdout.on('data', d => appendJobOutput(job, config.stateDir, d));
+            npm.stderr.on('data', d => appendJobOutput(job, config.stateDir, d));
           }
         });
         return sendJson(res, 200, { started: true, jobId: job.id });
