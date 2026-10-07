@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>新機器建置控制台</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background: #ffffff;
+      padding: 18px 24px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid #e2e8f0;
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: #64748b;
+    }
+    .status-dot-pulse {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #10b981;
+    }
+    /* 提示訊息通知欄 */
+    #notification-bar {
+      display: none;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .notify-info { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .notify-success { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .notify-warn { background-color: #fef9c3; color: #a16207; border: 1px solid #fef08a; }
+    .notify-error { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+    /* 區塊卡片 */
+    .section-card {
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .section-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-body {
+      padding: 20px;
+    }
+
+    /* 表格樣式 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      text-align: left;
+    }
+    th, td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    th {
+      background-color: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background-color: #fdfdfd;
+    }
+
+    /* 標籤徽章 */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .badge-green { background-color: #dcfce7; color: #166534; }
+    .badge-yellow { background-color: #fef9c3; color: #854d0e; }
+    .badge-red { background-color: #fee2e2; color: #991b1b; }
+    .badge-gray { background-color: #f1f5f9; color: #475569; }
+
+    /* 按鈕 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      background-color: #2563eb;
+      color: #ffffff;
+      text-decoration: none;
+    }
+    .btn:hover { background-color: #1d4ed8; }
+    .btn:disabled {
+      background-color: #94a3b8;
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+    .btn-secondary {
+      background-color: #f8fafc;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+    .btn-secondary:hover {
+      background-color: #f1f5f9;
+    }
+    .btn-success { background-color: #16a34a; }
+    .btn-success:hover { background-color: #15803d; }
+
+    /* 統計列 */
+    .stats-summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stat-pill {
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    /* Chrome 卡片清單 */
+    .chrome-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+    .chrome-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+    .chrome-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dot-indicator {
+      font-size: 16px;
+      line-height: 1;
+    }
+    .dot-running { color: #10b981; }
+    .dot-stopped { color: #94a3b8; }
+    .chrome-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1e293b;
+    }
+    .chrome-port {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    /* 登入與後續區域 */
+    .login-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .login-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 16px;
+      background: #fafafa;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .login-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .login-card p {
+      font-size: 13px;
+      color: #475569;
+    }
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    /* GitHub 驗證碼大橫幅 */
+    .gh-code-banner {
+      background: #fef08a;
+      border: 2px dashed #ca8a04;
+      color: #854d0e;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 1px;
+      animation: pulseBanner 2s infinite;
+    }
+    @keyframes pulseBanner {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.01); }
+    }
+
+    /* 背景工作摺疊清單 */
+    .job-item {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 10px 0;
+    }
+    .job-item:last-child {
+      border-bottom: none;
+    }
+    details summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      list-style: none;
+    }
+    details summary::-webkit-details-marker {
+      display: none;
+    }
+    details summary:hover {
+      color: #2563eb;
+    }
+    .job-pre {
+      margin-top: 10px;
+      background: #0f172a;
+      color: #cbd5e1;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: Consolas, Menlo, Monaco, monospace;
+      font-size: 12px;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* 安裝日誌 tail */
+    .log-box {
+      background: #0f172a;
+      color: #38bdf8;
+      font-family: Consolas, Menlo, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 14px 18px;
+      border-radius: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .empty-hint {
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 13px;
+      text-align: center;
+      padding: 16px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- 頂部標頭 -->
+    <header>
+      <h1>新機器建置控制台</h1>
+      <div class="header-status">
+        <span class="status-dot-pulse"></span>
+        <span id="conn-status">每 3 秒自動更新</span>
+      </div>
+    </header>
+
+    <!-- 訊息提示條 -->
+    <div id="notification-bar"></div>
+
+    <!-- 1. 建置進度 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>1. 建置進度（SOP 執行狀態）</h2>
+        <button class="btn btn-secondary" onclick="triggerAction('run-setup')">重新執行安裝</button>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50%;">步驟</th>
+              <th style="width: 30%;">結果</th>
+              <th style="width: 20%;">耗時（秒）</th>
+            </tr>
+          </thead>
+          <tbody id="steps-tbody">
+            <tr><td colspan="3" class="empty-hint">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. 驗收結果 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>2. 驗收結果</h2>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div class="stats-summary" id="verify-stats">
+            <span class="stat-pill badge-green" id="stat-pass">PASS: 0</span>
+            <span class="stat-pill badge-red" id="stat-fail">FAIL: 0</span>
+            <span class="stat-pill badge-gray" id="stat-manual">MANUAL: 0</span>
+          </div>
+          <button class="btn btn-secondary" onclick="triggerAction('run-verify')">重新驗收</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 15%;">角色</th>
+              <th style="width: 25%;">項目</th>
+              <th style="width: 15%;">狀態</th>
+              <th style="width: 45%;">詳細說明</th>
+            </tr>
+          </thead>
+          <tbody id="verify-tbody">
+            <tr><td colspan="4" class="empty-hint">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. Chrome 實例 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>3. Chrome 實例管理</h2>
+      </div>
+      <div class="section-body">
+        <div class="chrome-grid" id="chrome-list">
+          <div class="empty-hint">載入中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 桌面 App -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>4. 桌面 App</h2>
+      </div>
+      <div class="section-body">
+        <div id="devmode-row" style="margin-bottom:12px;"></div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">名稱</th>
+              <th style="width: 30%;">狀態</th>
+              <th style="width: 45%;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="apps-tbody">
+            <tr><td colspan="3" class="empty-hint">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 5. 登入與後續 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>5. 登入與後續步驟</h2>
+      </div>
+      <div class="section-body">
+        <!-- 若有 GitHub 驗證碼顯示醒目大橫幅 -->
+        <div id="gh-code-container" style="display: none;"></div>
+
+        <div class="login-grid">
+          <!-- GitHub -->
+          <div class="login-card">
+            <div>
+              <h3>GitHub</h3>
+              <p id="gh-status-text">檢查中...</p>
+              <p id="repo-status-text" style="margin-top: 6px;"></p>
+            </div>
+            <div class="card-actions">
+              <button class="btn" onclick="triggerAction('gh-login')">GitHub 登入（gh）</button>
+              <button class="btn btn-success" id="clone-repo-btn" onclick="triggerAction('clone-repo')" disabled>拉 AI_AGENT_ULTRA</button>
+            </div>
+          </div>
+
+          <!-- Claude -->
+          <div class="login-card">
+            <div>
+              <h3>Claude CLI</h3>
+              <p id="claude-status-text">檢查中...</p>
+            </div>
+            <div class="card-actions" id="claude-actions">
+              <!-- 按鈕由 JS 根據安裝狀態動態生成 -->
+            </div>
+          </div>
+
+          <!-- Codex -->
+          <div class="login-card">
+            <div>
+              <h3>Codex CLI</h3>
+              <p id="codex-status-text">檢查中...</p>
+            </div>
+            <div class="card-actions" id="codex-actions">
+              <!-- 按鈕由 JS 動態生成 -->
+            </div>
+          </div>
+
+          <!-- SVN -->
+          <div class="login-card">
+            <div>
+              <h3>SVN 後續</h3>
+              <p>執行環境安裝後續指令（會開啟 PowerShell 視窗輸入 SVN 帳密）</p>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-secondary" onclick="triggerAction('svn-continue')">SVN 後續（登入後按）</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 背景工作 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>6. 背景工作清單（最新 20 筆）</h2>
+      </div>
+      <div class="section-body" id="jobs-container">
+        <div class="empty-hint">目前無背景工作紀錄</div>
+      </div>
+    </div>
+
+    <!-- 7. 安裝紀錄 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>7. 安裝紀錄（setup.log 最後 80 行）</h2>
+      </div>
+      <div class="section-body">
+        <pre class="log-box" id="log-box">載入中...</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let notifyTimer = null;
+    function showNotification(msg, type = 'info') {
+      const bar = document.getElementById('notification-bar');
+      bar.textContent = msg;
+      bar.className = 'notify-' + type;
+      bar.style.display = 'block';
+      if (notifyTimer) clearTimeout(notifyTimer);
+      notifyTimer = setTimeout(() => {
+        bar.style.display = 'none';
+      }, 5000);
+    }
+
+    async function triggerAction(action, extra = {}) {
+      try {
+        const bodyData = { action, ...extra };
+        const res = await fetch('/api/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        const data = await res.json();
+
+        if (res.status === 403) {
+          showNotification('安全檢查未通過（403 Forbidden）', 'error');
+          return;
+        }
+        if (res.status === 400) {
+          showNotification('要求錯誤（' + (data.error || '400 Bad Request') + '）', 'error');
+          return;
+        }
+        if (res.status === 409) {
+          showNotification(data.error || '前置條件未滿足（409 Conflict）', 'warn');
+          return;
+        }
+        if (!res.ok) {
+          showNotification(data.error || '執行失敗', 'error');
+          return;
+        }
+
+        if (data.already) {
+          showNotification('已處於開啟或已完成狀態', 'info');
+        } else if (data.running) {
+          showNotification('該動作目前已在執行中，請稍候', 'warn');
+        } else if (data.note) {
+          showNotification(data.note, 'warn');
+        } else if (data.started) {
+          showNotification('已成功發送指令：' + action, 'success');
+        } else if (data.opened) {
+          showNotification('已開啟下載頁面：' + data.opened, 'info');
+        } else {
+          showNotification('操作已完成', 'success');
+        }
+        // 立即刷新狀態
+        fetchStatus();
+      } catch (err) {
+        showNotification('網路連線或請求失敗: ' + err.message, 'error');
+      }
+    }
+
+    function renderSteps(steps) {
+      const tbody = document.getElementById('steps-tbody');
+      if (!steps || steps.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty-hint">尚無建置步驟紀錄</td></tr>';
+        return;
+      }
+      tbody.innerHTML = steps.map(s => {
+        let badgeClass = 'badge-gray';
+        const resStr = (s.Result || '').toLowerCase();
+        if (resStr === 'installed' || resStr === 'present') {
+          badgeClass = 'badge-green';
+        } else if (resStr.startsWith('wait')) {
+          badgeClass = 'badge-yellow';
+        } else {
+          badgeClass = 'badge-red';
+        }
+        return `<tr>
+          <td><strong>${escapeHtml(s.Step || '')}</strong></td>
+          <td><span class="badge ${badgeClass}">${escapeHtml(s.Result || '')}</span></td>
+          <td>${s.Seconds !== undefined ? s.Seconds : '-'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderVerify(verify) {
+      const tbody = document.getElementById('verify-tbody');
+      if (!verify || verify.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-hint">尚無驗收結果紀錄</td></tr>';
+        document.getElementById('stat-pass').textContent = 'PASS: 0';
+        document.getElementById('stat-fail').textContent = 'FAIL: 0';
+        document.getElementById('stat-manual').textContent = 'MANUAL: 0';
+        return;
+      }
+
+      let countPass = 0, countFail = 0, countManual = 0;
+      tbody.innerHTML = verify.map(v => {
+        const st = (v.Status || '').toUpperCase();
+        let badgeClass = 'badge-gray';
+        if (st === 'PASS') {
+          badgeClass = 'badge-green';
+          countPass++;
+        } else if (st === 'FAIL') {
+          badgeClass = 'badge-red';
+          countFail++;
+        } else if (st === 'MANUAL') {
+          badgeClass = 'badge-gray';
+          countManual++;
+        }
+
+        return `<tr>
+          <td>${escapeHtml(v.Role || '')}</td>
+          <td><strong>${escapeHtml(v.Item || '')}</strong></td>
+          <td><span class="badge ${badgeClass}">${escapeHtml(v.Status || '')}</span></td>
+          <td>${escapeHtml(v.Detail || '')}</td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('stat-pass').textContent = `PASS: ${countPass}`;
+      document.getElementById('stat-fail').textContent = `FAIL: ${countFail}`;
+      document.getElementById('stat-manual').textContent = `MANUAL: ${countManual}`;
+    }
+
+    function renderDevMode(on) {
+      const el = document.getElementById('devmode-row');
+      if (!el) return;
+      el.innerHTML = on
+        ? 'Windows 開發人員模式：<span style="color:#16a34a">✅ 已開啟</span>'
+        : 'Windows 開發人員模式：<span style="color:#dc2626">未開啟</span> <button onclick="triggerAction(\'enable-devmode\')">打開設定頁（開發人員專用 → 開啟開發人員模式）</button>';
+    }
+
+    const isInstalledMap = {};
+    function renderApps(apps, cowork, jobs) {
+      const tbody = document.getElementById('apps-tbody');
+      if (!apps || apps.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty-hint">未設定桌面 App</td></tr>';
+        return;
+      }
+
+      apps.forEach(a => { isInstalledMap[a.id] = Boolean(a.installed); });
+      tbody.innerHTML = apps.map(app => {
+        const isInstalled = Boolean(app.installed);
+        const wingetAvail = Boolean(app.wingetAvailable);
+        const isRunning = (jobs || []).some(j => j.action === `install-app:${app.id}` && j.endedAt === null);
+
+        // 狀態顯示：✅ 已安裝 ／ ○ 未安裝
+        let statusHtml = isInstalled
+          ? '<span class="badge badge-green">✅ 已安裝</span>'
+          : '<span class="badge badge-gray">○ 未安裝</span>';
+
+        // Claude 桌面 App 那一列另外顯示 Cowork 服務狀態：
+        // 服務存在且未停用時顯示紅字「Cowork 服務未停用」＋按鈕「停用 Cowork 服務（會跳 UAC）」；已停用顯示 ✅；不存在不顯示。
+        let coworkStatusHtml = '';
+        let coworkActionHtml = '';
+        if (app.id === 'claude' && cowork && cowork.exists) {
+          if (cowork.disabled) {
+            coworkStatusHtml = '<span style="margin-left: 8px; color: #166534; font-size: 13px; font-weight: 500;">Cowork 服務：✅</span>';
+          } else {
+            coworkStatusHtml = '<span style="margin-left: 8px; color: #b91c1c; font-weight: 600; font-size: 13px;">Cowork 服務未停用</span>';
+            coworkActionHtml = '<button class="btn btn-secondary" onclick="triggerAction(\'disable-cowork\')">停用 Cowork 服務（會跳 UAC）</button>';
+          }
+        }
+
+        // 按鈕「安裝」（已安裝時停用；winget 不可用時按鈕文字改成「開啟下載頁」）
+        let btnText = '安裝';
+        let btnDisabled = false;
+
+        if (isInstalled) {
+          btnText = '開啟';
+        } else if (isRunning) {
+          btnText = '安裝中...';
+          btnDisabled = true;
+        } else if (!wingetAvail) {
+          btnText = '開啟下載頁';
+        }
+
+        return `<tr>
+          <td><strong>${escapeHtml(app.label || app.id)}</strong>${app.optional ? ' <span style="color:#6b7280;font-size:12px">（可選）</span>' : ''}</td>
+          <td>
+            <div style="display: flex; align-items: center; flex-wrap: wrap;">
+              ${statusHtml}
+              ${coworkStatusHtml}
+            </div>
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button class="btn ${isInstalled ? 'btn-secondary' : ''}" ${btnDisabled ? 'disabled' : ''} onclick="triggerAction(isInstalledMap['${escapeHtml(app.id)}'] ? 'open-app' : 'install-app', { app: '${escapeHtml(app.id)}' })">
+                ${btnText}
+              </button>
+              ${coworkActionHtml}
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderChromes(chromes) {
+      const container = document.getElementById('chrome-list');
+      if (!document.getElementById('chrome-port-input')) {
+        // input row is created once so typing is not wiped by the 3-second refresh
+        container.innerHTML = `
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <input id="chrome-port-input" type="text" inputmode="numeric" placeholder="Port（空白＝主帳號 Chrome）" style="padding:6px 10px;width:220px">
+            <button class="btn" onclick="openChromeFromInput()">開啟 Chrome</button>
+          </div>
+          <div id="chrome-status" style="font-size:13px;line-height:1.8"></div>`;
+      }
+      const c = chromes || {};
+      const ports = (c.ports || []).map(p => `<span class="badge badge-green" style="margin-right:6px">● ${p}</span>`).join('') || '<span style="color:#94a3b8">無</span>';
+      const main = c.mainRunning ? '<span class="badge badge-green">● 執行中</span>' : '<span style="color:#94a3b8">未開啟</span>';
+      document.getElementById('chrome-status').innerHTML = `主帳號 Chrome：${main}<br>執行中的 Port：${ports}<br><span style="color:#6b7280">開啟前會自動設定「啟動時繼續瀏覽上次開啟的網頁」（LINE 等才不會被登出）。</span>`;
+    }
+    function openChromeFromInput() {
+      const v = (document.getElementById('chrome-port-input').value || '').trim();
+      triggerAction('open-chrome', v === '' ? {} : { port: v });
+    }
+    function renderLogins(data) {
+      // 1. GitHub Code Banner
+      const banner = document.getElementById('gh-code-container');
+      if (data.ghLoginCode) {
+        banner.style.display = 'block';
+        banner.className = 'gh-code-banner';
+        banner.innerHTML = `驗證碼：<strong>${escapeHtml(data.ghLoginCode)}</strong>，請在 9224 的授權頁貼上`;
+      } else {
+        banner.style.display = 'none';
+        banner.innerHTML = '';
+      }
+
+      // 2. GitHub Status
+      const ghText = document.getElementById('gh-status-text');
+      const cloneBtn = document.getElementById('clone-repo-btn');
+      const repoText = document.getElementById('repo-status-text');
+
+      if (!data.gh.installed) {
+        ghText.innerHTML = '<span class="badge badge-red">未安裝 gh 工具</span>';
+        cloneBtn.disabled = true;
+      } else if (data.gh.loggedIn) {
+        const accs = data.gh.accounts.join(', ') || '已登入';
+        ghText.innerHTML = `已登入帳號：<strong>${escapeHtml(accs)}</strong>`;
+        cloneBtn.disabled = false;
+      } else {
+        ghText.innerHTML = '<span class="badge badge-yellow">尚未登入 GitHub</span>';
+        cloneBtn.disabled = true;
+      }
+
+      // Repo Status
+      if (data.repo && data.repo.cloned) {
+        repoText.innerHTML = 'AI_AGENT_ULTRA：<span class="badge badge-green">已 clone ✅</span>';
+      } else {
+        repoText.innerHTML = 'AI_AGENT_ULTRA：<span class="badge badge-gray">尚未下載</span>';
+      }
+
+      // 3. Claude
+      const claudeText = document.getElementById('claude-status-text');
+      const claudeActions = document.getElementById('claude-actions');
+      if (!data.claude.installed) {
+        claudeText.innerHTML = '<span class="badge badge-gray">未安裝 Claude CLI</span>';
+        claudeActions.innerHTML = '';
+      } else {
+        const s1 = data.claude.seat1 ? '已登入 ✅' : '未登入 ❌';
+        const s2 = data.claude.seat2 ? '已登入 ✅' : '未登入 ❌';
+        claudeText.innerHTML = `席位 1：${s1} ｜ 席位 2：${s2}`;
+        claudeActions.innerHTML = `
+          <button class="btn btn-secondary" onclick="triggerAction('claude-login-seat1')">席位 1 登入</button>
+          <button class="btn btn-secondary" onclick="triggerAction('claude-login-seat2')">席位 2 登入</button>
+        `;
+      }
+
+      // 4. Codex
+      const codexText = document.getElementById('codex-status-text');
+      const codexActions = document.getElementById('codex-actions');
+      if (!data.codex.installed) {
+        codexText.innerHTML = '<span class="badge badge-gray">未安裝 Codex CLI</span>';
+        codexActions.innerHTML = '';
+      } else {
+        codexText.innerHTML = '<span class="badge badge-green">已安裝</span> ' + (data.codex.loggedIn ? '已登入 ✅' : '未登入 ❌');
+        codexActions.innerHTML = `
+          <button class="btn btn-secondary" onclick="triggerAction('codex-login')">Codex 登入</button>
+        `;
+        if (data.codexLogin && data.codexLogin.code) {
+          codexActions.innerHTML += `<div class="gh-code-banner" style="margin-top:8px">Codex 驗證碼：<strong>${escapeHtml(data.codexLogin.code)}</strong><br><a href="${escapeHtml(data.codexLogin.url || "")}" target="_blank" rel="noopener">👉 點這裡打開授權頁</a>，貼上驗證碼。頁面關掉了就再點一次；驗證碼過期就按「Codex 登入」重新產生。</div>`;
+        }
+      }
+    }
+
+    function renderJobs(jobs) {
+      const container = document.getElementById('jobs-container');
+      if (!jobs || jobs.length === 0) {
+        container.innerHTML = '<div class="empty-hint">目前無背景工作紀錄</div>';
+        return;
+      }
+      container.innerHTML = jobs.map(j => {
+        const isRunning = (j.endedAt === null);
+        const statusBadge = isRunning
+          ? '<span class="badge badge-yellow">執行中...</span>'
+          : (j.exitCode === 0
+              ? '<span class="badge badge-green">成功 (0)</span>'
+              : `<span class="badge badge-red">結束 (${j.exitCode})</span>`);
+
+        const timeStr = `開始: ${formatDate(j.startedAt)} ${j.endedAt ? '｜ 結束: ' + formatDate(j.endedAt) : ''}`;
+        const outputLines = (j.outputTail && j.outputTail.length > 0)
+          ? j.outputTail.join('\n')
+          : '(無輸出內容)';
+
+        return `<div class="job-item">
+          <details>
+            <summary>
+              <div>
+                <strong>${escapeHtml(j.action)}</strong> (${escapeHtml(j.id)})
+                <span style="font-size:12px; color:#64748b; margin-left:8px;">${timeStr}</span>
+              </div>
+              <div>${statusBadge}</div>
+            </summary>
+            <pre class="job-pre">${escapeHtml(outputLines)}</pre>
+          </details>
+        </div>`;
+      }).join('');
+    }
+
+    function renderLogTail(logTail) {
+      const box = document.getElementById('log-box');
+      if (!logTail || logTail.length === 0) {
+        box.textContent = '(尚無日誌資料)';
+        return;
+      }
+      box.textContent = logTail.join('\n');
+    }
+
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return String(str ?? '');
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(isoStr) {
+      if (!isoStr) return '';
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleTimeString('zh-TW', { hour12: false });
+      } catch {
+        return isoStr;
+      }
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        renderSteps(data.steps);
+        renderVerify(data.verify);
+        renderChromes(data.chromes);
+        renderApps(data.apps, data.cowork, data.jobs);
+        renderDevMode(data.devMode);
+        renderLogins(data);
+        renderJobs(data.jobs);
+        renderLogTail(data.logTail);
+
+        document.getElementById('conn-status').textContent = '連線正常（每 3 秒自動更新）';
+      } catch (err) {
+        document.getElementById('conn-status').textContent = '連線失敗或中斷: ' + err.message;
+      }
+    }
+
+    // 初次載入與每 3 秒定時輪詢
+    fetchStatus();
+    setInterval(fetchStatus, 3000);
+  </script>
+</body>
+</html>

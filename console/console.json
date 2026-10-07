@@ -1,0 +1,89 @@
+{
+    "roles":  "user,dev",
+    "stateDir":  "C:\\WORK\\setup\\state",
+    "setupScript":  "C:\\WORK\\setup\\setup-machine.ps1",
+    "verifyScript":  "C:\\WORK\\setup\\verify-machine.ps1",
+    "chromeExe":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "chromeProfileRoot":  "C:\\WORK\\ChromeProfiles",
+    "chromes":  [
+                    {
+                        "port":  9222,
+                        "label":  "擁有者 Google＋LINE"
+                    },
+                    {
+                        "port":  9223,
+                        "label":  "備用"
+                    },
+                    {
+                        "port":  9224,
+                        "label":  "GitHub（a0894103）"
+                    },
+                    {
+                        "port":  9230,
+                        "label":  "LINE 助理 1"
+                    },
+                    {
+                        "port":  9231,
+                        "label":  "LINE 助理 2"
+                    },
+                    {
+                        "port":  9232,
+                        "label":  "LINE 助理 3"
+                    }
+                ],
+    "githubChromePort":  9224,
+    "repoUrl":  "https://github.com/a0894103/AI_AGENT_ULTRA.git",
+    "repoDir":  "C:\\WORK\\AI\\AI_AGENT_ULTRA",
+    "ghExe":  "C:\\WORK\\TOOLS\\gh\\bin\\gh.exe",
+    "gitExe":  "%LOCALAPPDATA%\\Programs\\Git\\cmd\\git.exe",
+    "claudeExe":  "%USERPROFILE%\\.local\\bin\\claude.exe",
+    "claudeSeat2Dir":  "%USERPROFILE%\\.claude-seat2",
+    "codexCmd":  "%APPDATA%\\npm\\codex.cmd",
+    "svnContinueCmd":  "powershell -NoProfile -ExecutionPolicy Bypass -File C:\\WORK\\AI\\AI_AGENT_ULTRA\\AutoConverter\\新電腦安裝環境.ps1 -InstallJdk",
+    "apps":  [
+                 {
+                     "id":  "antigravity",
+                     "label":  "Antigravity App",
+                     "winget":  [
+                                    "install",
+                                    "--id",
+                                    "Google.Antigravity",
+                                    "-e",
+                                    "--accept-source-agreements",
+                                    "--accept-package-agreements"
+                                ],
+                     "downloadUrl":  "https://antigravity.google/download",
+                     "launchExe":  "%LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe"
+                 },
+                 {
+                     "id":  "codex",
+                     "label":  "Codex App",
+                     "winget":  [
+                                    "install",
+                                    "Codex",
+                                    "-s",
+                                    "msstore",
+                                    "--accept-source-agreements",
+                                    "--accept-package-agreements"
+                                ],
+                     "downloadUrl":  "https://apps.microsoft.com/search?query=Codex",
+                     "appxName":  "OpenAI.Codex"
+                 },
+                 {
+                     "id":  "claude",
+                     "label":  "Claude 桌面 App",
+                     "winget":  [
+                                    "install",
+                                    "--id",
+                                    "Anthropic.Claude",
+                                    "-e",
+                                    "--accept-source-agreements",
+                                    "--accept-package-agreements"
+                                ],
+                     "downloadUrl":  "https://claude.ai/download",
+                     "appxName":  "Claude",
+                     "optional":  true
+                 }
+             ],
+    "coworkDisableScript":  "C:\\WORK\\setup\\disable-claude-cowork-service.cmd"
+}
