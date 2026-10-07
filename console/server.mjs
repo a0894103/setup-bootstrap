@@ -785,7 +785,7 @@ const server = http.createServer(async (req, res) => {
           spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
         } else if (target.appxName) {
           // MSIX app: start through shell:AppsFolder with its package family name and app id
-          const ps = "$p = Get-AppxPackage -Name '" + target.appxName + "' | Select-Object -First 1; $id = (Get-AppxPackageManifest $p).Package.Applications.Application.Id | Select-Object -First 1; Start-Process ('shell:AppsFolder\' + $p.PackageFamilyName + '!' + $id)";
+          const ps = "$p = Get-AppxPackage -Name '" + target.appxName + "' | Select-Object -First 1; $id = (Get-AppxPackageManifest $p).Package.Applications.Application.Id | Select-Object -First 1; Start-Process ('shell:AppsFolder\\' + $p.PackageFamilyName + '!' + $id)";
           spawn('powershell.exe', ['-NoProfile', '-Command', ps], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
         } else {
           return sendJson(res, 400, { error: 'No launch method' });
