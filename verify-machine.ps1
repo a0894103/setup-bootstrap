@@ -32,19 +32,26 @@ $chrome = @('C:\Program Files\Google\Chrome\Application\chrome.exe', "$env:LOCAL
 if ($chrome) { Row 'base' 'Chrome' 'PASS' $chrome } else { Row 'base' 'Chrome' 'FAIL' 'chrome.exe not found' }
 $ag = [bool](Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match '^Antigravity' })
 if ($ag) { Row 'base' 'Antigravity App' 'PASS' 'installed' } else { Row 'base' 'Antigravity App' 'FAIL' 'not installed (setup console: install)' }
-if (Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue) { Row 'base' 'Codex App' 'PASS' 'installed' } else { Row 'base' 'Codex App' 'FAIL' 'not installed (Microsoft Store: winget install Codex -s msstore)' }$dm = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
-if ($dm -eq 1) { Row 'base' 'Developer Mode' 'PASS' 'on' } else { Row 'base' 'Developer Mode' 'FAIL' 'off: Settings > System > For developers (UAC), or setup console button' }$pid1 = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice' -ErrorAction SilentlyContinue).ProgId
-if ($pid1 -like 'ChromeHTML*') { Row 'base' 'Chrome is default browser' 'PASS' $pid1 } else { Row 'base' 'Chrome is default browser' 'FAIL' "current: $pid1 (Settings > Apps > Default apps > Chrome)" }$crd = "${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe"
+if (Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue) { Row 'base' 'Codex App' 'PASS' 'installed' } else { Row 'base' 'Codex App' 'FAIL' 'not installed (Microsoft Store: winget install Codex -s msstore)' }
+$dm =(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
+if ($dm -eq 1) { Row 'base' 'Developer Mode' 'PASS' 'on' } else { Row 'base' 'Developer Mode' 'FAIL' 'off: Settings > System > For developers (UAC), or setup console button' }
+$pid1 =(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice' -ErrorAction SilentlyContinue).ProgId
+if ($pid1 -like 'ChromeHTML*') { Row 'base' 'Chrome is default browser' 'PASS' $pid1 } else { Row 'base' 'Chrome is default browser' 'FAIL' "current: $pid1 (Settings > Apps > Default apps > Chrome)" }
+$crd ="${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe"
 if (Test-Path $crd) { Row 'base' 'Chrome Remote Desktop host' 'PASS' $crd } else { Row 'base' 'Chrome Remote Desktop host' 'FAIL' 'remoting_host.exe not found' }
-Row 'base' 'Remote access enabled (PIN)' 'MANUAL' 'owner enables at remotedesktop.google.com/access'$ghOk = $false; try { & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) } catch { }
+$crdSvc = Get-Service -Name 'chromoting' -ErrorAction SilentlyContinue
+if ($crdSvc -and $crdSvc.Status -eq 'Running') { Row 'base' 'Remote access enabled (PIN)' 'PASS' 'chromoting service running' } else { Row 'base' 'Remote access enabled (PIN)' 'MANUAL' 'owner enables at remotedesktop.google.com/access' }
+$ghOk = $false; try { & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) } catch { }
 if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git') { Row 'base' 'AI_AGENT_ULTRA clone' 'PASS' ((git -C 'C:\WORK\AI\AI_AGENT_ULTRA' log -1 --format='%h %cd' --date=short 2>$null) -join '') }
 elseif (-not $ghOk) { Row 'base' 'AI_AGENT_ULTRA clone' 'WAIT' 'gh not logged in: setup console > GitHub login > pull AI_AGENT_ULTRA' }
 else { Row 'base' 'AI_AGENT_ULTRA clone' 'FAIL' 'C:\WORK\AI\AI_AGENT_ULTRA\.git missing' }
 $t = Get-ScheduledTask -TaskName 'AI_AGENT_ULTRA_AutoPull' -ErrorAction SilentlyContinue
-if ($t) { Row 'base' 'AutoPull task' 'PASS' $t.State } elseif (-not (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git')) { Row 'base' 'AutoPull task' 'WAIT' 'created after the repo is pulled' } else { Row 'base' 'AutoPull task' 'FAIL' 'task missing' }if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git') {
+if ($t) { Row 'base' 'AutoPull task' 'PASS' $t.State } elseif (-not (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git')) { Row 'base' 'AutoPull task' 'WAIT' 'created after the repo is pulled' } else { Row 'base' 'AutoPull task' 'FAIL' 'task missing' }
+if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git') {
   Push-Location 'C:\WORK\AI\AI_AGENT_ULTRA'; $pw = & node -e "import('playwright').then(()=>console.log('ok')).catch(e=>console.log('fail '+e.message))" 2>&1 | Out-String; Pop-Location
   if ($pw -match '^ok') { Row 'base' 'npm playwright' 'PASS' 'loads from AI_AGENT_ULTRA' } else { Row 'base' 'npm playwright' 'FAIL' ($pw.Trim()) }
-}$ghAcc = ''; try { $ghOut = & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status 2>&1 | Out-String; if ($LASTEXITCODE -eq 0) { $ghAcc = ([regex]::Matches($ghOut, 'account (\S+)') | ForEach-Object { $_.Groups[1].Value }) -join ',' } } catch { }
+}
+$ghAcc = ''; try { $ghOut = & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status 2>&1 | Out-String; if ($LASTEXITCODE -eq 0) { $ghAcc = ([regex]::Matches($ghOut, 'account (\S+)') | ForEach-Object { $_.Groups[1].Value }) -join ',' } } catch { }
 if ($ghAcc) { Row 'base' 'gh auth login' 'PASS' "logged in: $ghAcc" } else { Row 'base' 'gh auth login' 'WAIT' 'owner logs in (setup console > GitHub login)' }
 
 if ($Roles -contains 'user' -or $Roles -contains 'dev') {
