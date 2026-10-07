@@ -44,7 +44,8 @@ $t = Get-ScheduledTask -TaskName 'AI_AGENT_ULTRA_AutoPull' -ErrorAction Silently
 if ($t) { Row 'base' 'AutoPull task' 'PASS' $t.State } elseif (-not (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git')) { Row 'base' 'AutoPull task' 'WAIT' 'created after the repo is pulled' } else { Row 'base' 'AutoPull task' 'FAIL' 'task missing' }if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git') {
   Push-Location 'C:\WORK\AI\AI_AGENT_ULTRA'; $pw = & node -e "import('playwright').then(()=>console.log('ok')).catch(e=>console.log('fail '+e.message))" 2>&1 | Out-String; Pop-Location
   if ($pw -match '^ok') { Row 'base' 'npm playwright' 'PASS' 'loads from AI_AGENT_ULTRA' } else { Row 'base' 'npm playwright' 'FAIL' ($pw.Trim()) }
-}Row 'base' 'gh auth login' 'MANUAL' 'owner logs in (not checked)'
+}$ghAcc = ''; try { $ghOut = & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status 2>&1 | Out-String; if ($LASTEXITCODE -eq 0) { $ghAcc = ([regex]::Matches($ghOut, 'account (\S+)') | ForEach-Object { $_.Groups[1].Value }) -join ',' } } catch { }
+if ($ghAcc) { Row 'base' 'gh auth login' 'PASS' "logged in: $ghAcc" } else { Row 'base' 'gh auth login' 'WAIT' 'owner logs in (setup console > GitHub login)' }
 
 if ($Roles -contains 'user' -or $Roles -contains 'dev') {
   Cmd 'user' 'Claude CLI' 'claude' @('--version') "$env:USERPROFILE\.local\bin\*" ''
@@ -54,7 +55,9 @@ if ($Roles -contains 'user' -or $Roles -contains 'dev') {
   if (-not $svc) { Row 'user' 'Claude desktop app' 'MANUAL' 'not installed: official installer + owner login, then tools\setup\disable-claude-cowork-service.cmd' }
   elseif ($svc.StartMode -eq 'Disabled') { Row 'user' 'CoworkVMService disabled' 'PASS' "StartMode=Disabled State=$($svc.State)" }
   else { Row 'user' 'CoworkVMService disabled' 'FAIL' "StartMode=$($svc.StartMode) State=$($svc.State): run tools\setup\disable-claude-cowork-service.cmd (UAC)" }
-  Row 'user' 'claude/codex/agy login' 'MANUAL' 'owner logs in (not checked)'
+  if (Test-Path "$env:USERPROFILE\.claude\.credentials.json") { Row 'user' 'Claude seat1 login' 'PASS' 'credentials present (not read)' } else { Row 'user' 'Claude seat1 login' 'WAIT' 'setup console > seat 1 login' }
+  if (Test-Path "$env:USERPROFILE\.codex\auth.json") { Row 'user' 'Codex login' 'PASS' 'auth present (not read)' } else { Row 'user' 'Codex login' 'WAIT' 'setup console > Codex login' }
+  Row 'user' 'AGY / Antigravity App login' 'MANUAL' 'owner signs in to the Antigravity App'
 }
 if ($Roles -contains 'dev') {
   Cmd 'dev' 'Python 3.12' 'python' @('--version') "$env:LOCALAPPDATA\Programs\Python\Python312*" 'Python 3.12*'
