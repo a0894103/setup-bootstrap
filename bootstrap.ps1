@@ -22,6 +22,15 @@ $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
 L "bootstrap roles=$Roles arch=$arch user=$env:USERNAME"
 
 # ---------- A. administrator part (one UAC) ----------
+L '[A0] Tailscale (install only; owner signs in from the tray icon)'
+if (-not (Test-Path 'C:\Program Files\Tailscale\tailscale.exe')) {
+  try {
+    $ta = if ($arch -eq 'arm64') { 'arm64' } else { 'amd64' }
+    Invoke-WebRequest -UseBasicParsing "https://pkgs.tailscale.com/stable/tailscale-setup-latest-$ta.msi" -OutFile "$tmp\tailscale.msi"
+    Start-Process msiexec.exe -ArgumentList '/i', "`"$tmp\tailscale.msi`"", '/qn', '/norestart' -Wait
+    L '[A0] ok'
+  } catch { L "[A0] ERR $($_.Exception.Message)" }
+} else { L '[A0] present' }
 L '[A1] OpenSSH server for tezhu (Tailscale range only)'
 try {
   if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) { Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null }
@@ -58,10 +67,14 @@ if ($pkgOk) {
 L '[B2] start setup-machine.ps1 as the signed-in user (not elevated)'
 $cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File $root\setup-machine.ps1 -Roles $Roles -LogDir $state"
 $tn = 'SetupMachineOnce'
-schtasks /create /tn $tn /tr $cmd /sc once /st 23:59 /it /rl LIMITED /ru "$env:USERDOMAIN\$env:USERNAME" /f | Out-Null
-schtasks /run /tn $tn | Out-Null
+# Register-ScheduledTask so it also runs on battery (laptops); interactive, not elevated
+$act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File $root\setup-machine.ps1 -Roles $Roles -LogDir $state"
+$set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 3)
+$pri = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $tn -Action $act -Settings $set -Principal $pri -Force | Out-Null
+Start-ScheduledTask -TaskName $tn
 Start-Sleep 5
-schtasks /change /tn $tn /disable | Out-Null
+Disable-ScheduledTask -TaskName $tn | Out-Null
 L '[B2] started; the setup console opens in Chrome as soon as Node is installed. Admin steps continue below.'
 }
 
