@@ -44,6 +44,28 @@ if (-not (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe')) {
   try { Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/chrome/install/latest/chrome_installer.exe' -OutFile "$tmp\chrome.exe"; Start-Process "$tmp\chrome.exe" -ArgumentList '/silent', '/install', '--do-not-launch-chrome' -Wait; L '[A3] ok' } catch { L "[A3] ERR $($_.Exception.Message)" }
 } else { L '[A3] present' }
 
+# ---------- B. download this package and start setup-machine as the normal user ----------
+L '[B1] download setup package'
+try {
+  Invoke-WebRequest -UseBasicParsing 'https://github.com/a0894103/setup-bootstrap/archive/refs/heads/main.zip' -OutFile "$tmp\pkg.zip"
+  Expand-Archive "$tmp\pkg.zip" "$tmp\pkg" -Force
+  Copy-Item "$tmp\pkg\setup-bootstrap-main\*" $root -Recurse -Force
+  L '[B1] ok'
+  $pkgOk = $true
+} catch { L "[B1] ERR $($_.Exception.Message)"; $pkgOk = $false }
+
+if ($pkgOk) {
+L '[B2] start setup-machine.ps1 as the signed-in user (not elevated)'
+$cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File $root\setup-machine.ps1 -Roles $Roles -LogDir $state"
+$tn = 'SetupMachineOnce'
+schtasks /create /tn $tn /tr $cmd /sc once /st 23:59 /it /rl LIMITED /ru "$env:USERDOMAIN\$env:USERNAME" /f | Out-Null
+schtasks /run /tn $tn | Out-Null
+Start-Sleep 5
+schtasks /change /tn $tn /disable | Out-Null
+L '[B2] started; the setup console opens in Chrome as soon as Node is installed. Admin steps continue below.'
+}
+
+# ---------- A (continued). slower admin steps; setup-machine waits for the marker at the end ----------
 L '[A4] Chrome Remote Desktop host'
 if (-not (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe")) {
   try { Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/edgedl/chrome-remote-desktop/chromeremotedesktophost.msi' -OutFile "$tmp\crd.msi"; Start-Process msiexec.exe -ArgumentList '/i', "`"$tmp\crd.msi`"", '/qn', '/norestart' -Wait; L '[A4] ok' } catch { L "[A4] ERR $($_.Exception.Message)" }
@@ -73,20 +95,5 @@ if ($Roles -match 'build') {
   } else { L '[A6] present' }
 }
 
-# ---------- B. download this package and start setup-machine as the normal user ----------
-L '[B1] download setup package'
-try {
-  Invoke-WebRequest -UseBasicParsing 'https://github.com/a0894103/setup-bootstrap/archive/refs/heads/main.zip' -OutFile "$tmp\pkg.zip"
-  Expand-Archive "$tmp\pkg.zip" "$tmp\pkg" -Force
-  Copy-Item "$tmp\pkg\setup-bootstrap-main\*" $root -Recurse -Force
-  L '[B1] ok'
-} catch { L "[B1] ERR $($_.Exception.Message)"; return }
-
-L '[B2] start setup-machine.ps1 as the signed-in user (not elevated)'
-$cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File $root\setup-machine.ps1 -Roles $Roles -LogDir $state"
-$tn = 'SetupMachineOnce'
-schtasks /create /tn $tn /tr $cmd /sc once /st 23:59 /it /rl LIMITED /ru "$env:USERDOMAIN\$env:USERNAME" /f | Out-Null
-schtasks /run /tn $tn | Out-Null
-Start-Sleep 5
-schtasks /change /tn $tn /disable | Out-Null
-L '[B2] started; the setup console will open in Chrome. Remaining owner steps are shown there.'
+Set-Content -Path "$state\bootstrap_admin_done.txt" -Value (Get-Date -Format s) -Encoding ascii
+L 'admin phase done (marker written)'

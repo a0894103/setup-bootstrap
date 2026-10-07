@@ -117,6 +117,14 @@ function Install-WingetIfMissing {
   } catch { Log "[ERR ] winget bootstrap: $($_.Exception.Message)" }
   return (Test-Winget)
 }
+# Admin-only items (Chrome Remote Desktop host, Codex App license) are done by bootstrap.ps1 in parallel.
+# Wait for its marker before checking them, so this non-elevated script never asks for UAC.
+function Wait-BootstrapAdmin {
+  $mk = Join-Path $LogDir 'bootstrap_admin_done.txt'
+  if (-not (Test-Path (Join-Path $LogDir 'bootstrap.log'))) { return }
+  for ($i = 0; $i -lt 160 -and -not (Test-Path $mk); $i++) { if ($i -eq 0) { Log '[wait] bootstrap admin steps still running (CRD host, Codex license)...' }; Start-Sleep 15 }
+}
+Wait-BootstrapAdmin
 Step 'Codex App' { [bool](Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue) } {
   # Store-signed MSIX: needs the official license, provisioned as admin (UAC once), then registered for this user.
   $ma = if ($arch -eq 'arm64') { 'arm64' } else { 'x64' }
@@ -124,7 +132,7 @@ Step 'Codex App' { [bool](Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction Sile
   Get-File 'https://persistent.oaistatic.com/codex-app-prod/ChatGPT-License.xml' "$tmp\codex-license.xml"
   $prov = "Add-AppxProvisionedPackage -Online -PackagePath '$tmp\codex.msix' -LicensePath '$tmp\codex-license.xml' -Regions all | Out-Null"
   $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-  if ($isAdmin) { Invoke-Expression $prov } else { Log '  Codex App: UAC prompt for provisioning (owner clicks Yes)'; Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList '-NoProfile', '-Command', $prov }
+  if ($isAdmin) { Invoke-Expression $prov } elseif (-not (Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'OpenAI.Codex' })) { Log '  Codex App: not provisioned and not admin - run the bootstrap (admin, one UAC); no separate UAC here' }
   Add-AppxPackage -Path "$tmp\codex.msix"
 }
 Step 'Chrome Remote Desktop host' { Test-Path "${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe" } {
