@@ -57,7 +57,7 @@ if ($Roles -contains 'user' -or $Roles -contains 'dev') {
   Row 'user' 'claude/codex/agy login' 'MANUAL' 'owner logs in (not checked)'
 }
 if ($Roles -contains 'dev') {
-  Cmd 'dev' 'Python 3.12' 'python' @('--version') "$env:LOCALAPPDATA\Programs\Python\Python312\*" 'Python 3.12*'
+  Cmd 'dev' 'Python 3.12' 'python' @('--version') "$env:LOCALAPPDATA\Programs\Python\Python312*" 'Python 3.12*'
   Cmd 'dev' 'Go 1.27' 'go' @('version') 'C:\WORK\TOOLS\go\*' 'go version go1.27*'
 }
 

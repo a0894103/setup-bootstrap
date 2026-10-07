@@ -57,7 +57,7 @@ if (-not (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe')) {
 L '[B1] download setup package'
 try {
   Invoke-WebRequest -UseBasicParsing 'https://github.com/a0894103/setup-bootstrap/archive/refs/heads/main.zip' -OutFile "$tmp\pkg.zip"
-  Expand-Archive "$tmp\pkg.zip" "$tmp\pkg" -Force
+  New-Item -ItemType Directory -Force "$tmp\pkg" | Out-Null; & "$env:SystemRoot\System32\tar.exe" -xf "$tmp\pkg.zip" -C "$tmp\pkg"
   Copy-Item "$tmp\pkg\setup-bootstrap-main\*" $root -Recurse -Force
   L '[B1] ok'
   $pkgOk = $true

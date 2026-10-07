@@ -24,6 +24,7 @@ function Add-UserPath($p) {
   if ($parts -notcontains $p) { [Environment]::SetEnvironmentVariable('Path', (($parts + $p) -join ';'), 'User') }
   if (($env:Path -split ';') -notcontains $p) { $env:Path = "$env:Path;$p" }
 }
+function Expand-Zip($zip, $dest) { New-Item -ItemType Directory -Force $dest | Out-Null; & "$env:SystemRoot\System32\tar.exe" -xf $zip -C $dest; if ($LASTEXITCODE) { throw "tar failed ($LASTEXITCODE) for $zip" } }
 function Get-File($url, $out) { Log "download $url"; Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out }
 function Save-Results { try { [IO.File]::WriteAllText((Join-Path $LogDir 'setup-results.json'), ($results | ConvertTo-Json), (New-Object Text.UTF8Encoding $false)) } catch { } }
 function Step($name, [scriptblock]$check, [scriptblock]$install) {
@@ -56,13 +57,13 @@ Step 'Git (per-user)' { Test-Path "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" }
 }
 Step 'Node 24.19.0' { Test-Path 'C:\WORK\TOOLS\nodejs\node.exe' } {
   $u = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-$arch.zip"; Get-File $u "$tmp\node.zip"
-  Expand-Archive "$tmp\node.zip" $tmp -Force; Move-Item "$tmp\node-v24.19.0-win-$arch" 'C:\WORK\TOOLS\nodejs'
+  Expand-Zip "$tmp\node.zip" $tmp; Move-Item "$tmp\node-v24.19.0-win-$arch" 'C:\WORK\TOOLS\nodejs'
   Add-UserPath 'C:\WORK\TOOLS\nodejs'; Add-UserPath "$env:APPDATA\npm"
 }
 Step 'gh' { Test-Path 'C:\WORK\TOOLS\gh\bin\gh.exe' } {
   $pat = if ($arch -eq 'arm64') { '^gh_.*_windows_arm64\.zip$' } else { '^gh_.*_windows_amd64\.zip$' }
   $u = Latest-GitHubAsset 'cli/cli' $pat; Get-File $u "$tmp\gh.zip"
-  Expand-Archive "$tmp\gh.zip" 'C:\WORK\TOOLS\gh' -Force; Add-UserPath 'C:\WORK\TOOLS\gh\bin'
+  Expand-Zip "$tmp\gh.zip" 'C:\WORK\TOOLS\gh'; Add-UserPath 'C:\WORK\TOOLS\gh\bin'
 }
 if (-not $SkipChrome) {
   Step 'Chrome' { (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe') -or (Test-Path "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") } {
@@ -109,7 +110,7 @@ function Install-WingetIfMissing {
     $rel = Invoke-RestMethod -UseBasicParsing -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -Headers @{ 'User-Agent' = 'setup-machine' }
     $bundle = ($rel.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1).browser_download_url
     $deps = ($rel.assets | Where-Object { $_.name -like '*Dependencies*.zip' } | Select-Object -First 1).browser_download_url
-    Get-File $deps "$tmp\winget-deps.zip"; Expand-Archive "$tmp\winget-deps.zip" "$tmp\winget-deps" -Force
+    Get-File $deps "$tmp\winget-deps.zip"; Expand-Zip "$tmp\winget-deps.zip" "$tmp\winget-deps"
     $depArch = if ($arch -eq 'arm64') { 'arm64' } else { 'x64' }
     Get-ChildItem "$tmp\winget-deps" -Recurse -Filter *.appx | Where-Object { $_.FullName -match "\\$depArch\\" } | ForEach-Object { try { Add-AppxPackage -Path $_.FullName -ErrorAction Stop } catch { Log "  dep $($_.Exception.Message)" } }
     Get-File $bundle "$tmp\winget.msixbundle"; Add-AppxPackage -Path "$tmp\winget.msixbundle" -ErrorAction Stop
@@ -177,7 +178,7 @@ if ($Roles -contains 'user' -or $Roles -contains 'dev') {
 
 # ---------- SOP 2: dev ----------
 if ($Roles -contains 'dev') {
-  Step 'Python 3.12.10 (per-user)' { Test-Path "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe" } {
+  Step 'Python 3.12.10 (per-user)' { (Test-Path "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe") -or (Test-Path "$env:LOCALAPPDATA\Programs\Python\Python312-arm64\python.exe") } {
     $u = if ($arch -eq 'arm64') { 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-arm64.exe' } else { 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe' }
     Get-File $u "$tmp\python.exe"
     $p = Start-Process "$tmp\python.exe" -ArgumentList '/quiet', 'InstallAllUsers=0', 'InstallLauncherAllUsers=0', 'Include_launcher=0', 'PrependPath=1', 'Include_test=0', 'Include_doc=0', 'Include_tcltk=0', '/log', "$LogDir\python-install.log" -PassThru
@@ -186,7 +187,7 @@ if ($Roles -contains 'dev') {
   Step 'Go 1.27.0' { Test-Path 'C:\WORK\TOOLS\go\bin\go.exe' } {
     $ga = if ($arch -eq 'arm64') { 'arm64' } else { 'amd64' }
     Get-File "https://go.dev/dl/go1.27.0.windows-$ga.zip" "$tmp\go.zip"
-    Expand-Archive "$tmp\go.zip" 'C:\WORK\TOOLS' -Force; Add-UserPath 'C:\WORK\TOOLS\go\bin'
+    Expand-Zip "$tmp\go.zip" 'C:\WORK\TOOLS'; Add-UserPath 'C:\WORK\TOOLS\go\bin'
   }
 }
 
