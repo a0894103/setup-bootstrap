@@ -707,7 +707,7 @@
         // input row is created once so typing is not wiped by the 3-second refresh
         container.innerHTML = `
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-            <input id="chrome-port-input" type="text" inputmode="numeric" placeholder="Port（空白＝主帳號 Chrome）" style="padding:6px 10px;width:220px">
+            <input id="chrome-port-input" type="text" inputmode="numeric" placeholder="Port（空白＝主帳號 Chrome）" style="padding:6px 10px;width:220px" onkeydown="if (event.key === 'Enter') { event.preventDefault(); openChromeFromInput(); }">
             <button class="btn" onclick="openChromeFromInput()">開啟 Chrome</button>
           </div>
           <div id="chrome-status" style="font-size:13px;line-height:1.8"></div>`;
