@@ -35,7 +35,10 @@ if ($ag) { Row 'base' 'Antigravity App' 'PASS' 'installed' } else { Row 'base' '
 if (Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue) { Row 'base' 'Codex App' 'PASS' 'installed' } else { Row 'base' 'Codex App' 'FAIL' 'not installed (Microsoft Store: winget install Codex -s msstore)' }
 $dm =(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
 if ($dm -eq 1) { Row 'base' 'Developer Mode' 'PASS' 'on' } else { Row 'base' 'Developer Mode' 'FAIL' 'off: Settings > System > For developers (UAC), or setup console button' }
-$pid1 =(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice' -ErrorAction SilentlyContinue).ProgId
+# Newer Windows 11 builds store the choice under UserChoiceLatest\ProgId; the old UserChoice key can keep a stale MSEdgeHTM (TCCC03 2026-10-08).
+$https = 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https'
+$pid1 = (Get-ItemProperty "$https\UserChoiceLatest\ProgId" -ErrorAction SilentlyContinue).ProgId
+if (-not $pid1) { $pid1 = (Get-ItemProperty "$https\UserChoice" -ErrorAction SilentlyContinue).ProgId }
 if ($pid1 -like 'ChromeHTML*') { Row 'base' 'Chrome is default browser' 'PASS' $pid1 } else { Row 'base' 'Chrome is default browser' 'FAIL' "current: $pid1 (Settings > Apps > Default apps > Chrome)" }
 $crd ="${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe"
 if (Test-Path $crd) { Row 'base' 'Chrome Remote Desktop host' 'PASS' $crd } else { Row 'base' 'Chrome Remote Desktop host' 'FAIL' 'remoting_host.exe not found' }
@@ -67,7 +70,17 @@ if ($Roles -contains 'user' -or $Roles -contains 'dev') {
   Row 'user' 'AGY / Antigravity App login' 'MANUAL' 'owner signs in to the Antigravity App'
 }
 if ($Roles -contains 'dev') {
-  Cmd 'dev' 'Python 3.12' 'python' @('--version') "$env:LOCALAPPDATA\Programs\Python\Python312*" 'Python 3.12*'
+  # AutoConverter machines: its installer puts an embedded Python at C:\WORK\TOOLS\python first on PATH on purpose.
+  # Accept that when the regular Python 3.12 install is also present (dev tools use it via its full path / py launcher).
+  $pyFirst = Get-Command python -ErrorAction SilentlyContinue | Select-Object -First 1
+  $pyUser = Get-ChildItem "$env:LOCALAPPDATA\Programs\Python\Python312*\python.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($pyFirst -and $pyFirst.Source -like 'C:\WORK\TOOLS\python\*' -and $pyUser) {
+    $pv = (& $pyUser.FullName --version 2>&1 | Out-String).Trim()
+    if ($pv -like 'Python 3.12*') { Row 'dev' 'Python 3.12' 'PASS' "$pv @ $($pyUser.FullName) (AutoConverter embedded Python first on PATH)" }
+    else { Row 'dev' 'Python 3.12' 'FAIL' "version '$pv' not like Python 3.12*" }
+  } else {
+    Cmd 'dev' 'Python 3.12' 'python' @('--version') "$env:LOCALAPPDATA\Programs\Python\Python312*" 'Python 3.12*'
+  }
   Cmd 'dev' 'Go 1.27' 'go' @('version') 'C:\WORK\TOOLS\go\*' 'go version go1.27*'
 }
 

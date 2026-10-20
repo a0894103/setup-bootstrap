@@ -36,7 +36,7 @@ try {
   if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) { Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null }
   Set-Service sshd -StartupType Automatic; Start-Service sshd
   $k = 'C:\ProgramData\ssh\administrators_authorized_keys'
-  Set-Content -Path $k -Value 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM6AzJ8aDvYElXj8cWnnERsMQH/kiYd8kBgbrDD6ra+B tezhu@TCCC11' -Encoding ascii
+  Set-Content -Path $k -Value 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIaj52dCYwhuTRN7TOY2FwkkS1yPQhl5KzsRlhXPqhGX tezhu@TCCC21' -Encoding ascii
   icacls $k /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null
   New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -PropertyType String -Force | Out-Null
   Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue | Disable-NetFirewallRule
