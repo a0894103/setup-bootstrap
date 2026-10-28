@@ -2,6 +2,7 @@
 # Owner runs ONE line in an administrator PowerShell (one UAC):
 #   irm https://raw.githubusercontent.com/a0894103/setup-bootstrap/main/bootstrap.ps1 | iex
 # Optional before the line: $Roles = 'user,dev,build'   (default 'user,dev')
+#                           $Site = 'company' | 'home'  (default auto: office gateway or blocked UDP DNS -> DNS over HTTPS)
 # What it does:
 #   A. everything that needs administrator rights, once: OpenSSH for tezhu, Developer Mode, Chrome,
 #      Chrome Remote Desktop host, Codex App license provisioning, and VS Build Tools for the build role.
@@ -12,6 +13,7 @@ $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 if (-not $Roles) { $Roles = 'user,dev' }
+if ($Site -notin 'company', 'home') { $Site = 'auto' }
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) { Write-Output 'Please run this in an ADMINISTRATOR PowerShell (right-click > Run as administrator).'; return }
 $root = 'C:\WORK\setup'; $state = "$root\state"; $tmp = "$env:TEMP\bootstrap"
@@ -57,6 +59,49 @@ try {
   foreach ($p in $ex) { if ($have -notcontains $p) { Add-MpPreference -ExclusionPath $p } }
   L ('[A2b] ok: ' + ((Get-MpPreference).ExclusionPath -join '; '))
 } catch { L "[A2b] ERR $($_.Exception.Message)" }
+
+L '[A2c] always-on machine settings (power, long paths, no surprise reboot)'
+# These machines run PMs, cores and Chrome workers around the clock; most are laptops left at home or the office.
+try {
+  powercfg /change hibernate-timeout-ac 0
+  powercfg /setacvalueindex SCHEME_CURRENT SUB_BUTTONS LIDACTION 0   # closing the lid on AC power does nothing
+  powercfg /setactive SCHEME_CURRENT
+  # Fast startup off: "shut down" becomes a real shutdown, so services and Tailscale come up clean after a restart.
+  New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name HiberbootEnabled -Value 0 -PropertyType DWord -Force | Out-Null
+  # Deep .worktrees / node_modules / dotnet obj paths exceed 260 characters.
+  New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1 -PropertyType DWord -Force | Out-Null
+  # Updates still install; Windows just does not restart by itself while the owner is signed in (that killed PMs and cores).
+  $au = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+  New-Item -Path $au -Force | Out-Null
+  New-ItemProperty -Path $au -Name NoAutoRebootWithLoggedOnUsers -Value 1 -PropertyType DWord -Force | Out-Null
+  L '[A2c] ok'
+} catch { L "[A2c] ERR $($_.Exception.Message)" }
+
+L "[A2d] DNS over HTTPS (Site=$Site)"
+# The office network (gateway 192.168.50.x) blocks plain UDP DNS: TCCC12 lost all name lookups on 10/27 until DNS went
+# over HTTPS. Site 'company' always applies it, 'home' never does, 'auto' applies it on the office gateway or whenever
+# UDP DNS fails while TCP DNS works. It keeps working on any other network, so a laptop moved home later is fine.
+try {
+  $ifc = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Where-Object { $_.InterfaceAlias -notmatch 'Tailscale' } | Sort-Object RouteMetric | Select-Object -First 1)
+  $gw = "$($ifc.NextHop)"
+  $udpOk = $true; try { Resolve-DnsName github.com -DnsOnly -QuickTimeout -ErrorAction Stop | Out-Null } catch { $udpOk = $false }
+  $tcpOk = $true; try { Resolve-DnsName github.com -DnsOnly -TcpOnly -QuickTimeout -ErrorAction Stop | Out-Null } catch { $tcpOk = $false }
+  $apply = ($Site -eq 'company') -or ($Site -eq 'auto' -and ($gw -like '192.168.50.*' -or (-not $udpOk -and $tcpOk)))
+  L "[A2d] adapter=$($ifc.InterfaceAlias) gateway=$gw udpDns=$udpOk tcpDns=$tcpOk apply=$apply"
+  if ($apply) {
+    $before = (Get-DnsClientServerAddress -InterfaceAlias $ifc.InterfaceAlias -AddressFamily IPv4).ServerAddresses -join ','
+    Set-Content -Path "$state\dns_before.txt" -Value "$($ifc.InterfaceAlias) dns=$before (rollback: Set-DnsClientServerAddress -InterfaceAlias '$($ifc.InterfaceAlias)' -ResetServerAddresses)" -Encoding ascii
+    foreach ($p in @(@('1.1.1.1', 'https://cloudflare-dns.com/dns-query'), @('8.8.8.8', 'https://dns.google/dns-query'))) {
+      if (Get-DnsClientDohServerAddress -ServerAddress $p[0] -ErrorAction SilentlyContinue) { Set-DnsClientDohServerAddress -ServerAddress $p[0] -DohTemplate $p[1] -AllowFallbackToUdp $false -AutoUpgrade $true | Out-Null }
+      else { Add-DnsClientDohServerAddress -ServerAddress $p[0] -DohTemplate $p[1] -AllowFallbackToUdp $false -AutoUpgrade $true | Out-Null }
+    }
+    Set-DnsClientServerAddress -InterfaceAlias $ifc.InterfaceAlias -ServerAddresses @('1.1.1.1', '8.8.8.8')
+    netsh dns set global doh=yes | Out-Null
+    ipconfig /flushdns | Out-Null
+    Start-Sleep 2
+    try { Resolve-DnsName github.com -ErrorAction Stop | Out-Null; L "[A2d] ok (was $before)" } catch { L "[A2d] ERR lookup still failing: $($_.Exception.Message)" }
+  } else { L '[A2d] skipped' }
+} catch { L "[A2d] ERR $($_.Exception.Message)" }
 
 L '[A3] Chrome'
 if (-not (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe')) {
