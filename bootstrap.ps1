@@ -153,6 +153,19 @@ L '[B2] started; the setup console opens in Chrome as soon as Node is installed.
 }
 
 # ---------- A (continued). slower admin steps; setup-machine waits for the marker at the end ----------
+L '[A3c] Microsoft Visual C++ Redistributable (latest)'
+# 10/29 TCCC11 reinstall: the in-box msvcp140 (14.36) makes onnxruntime 1.30 crash on import (access violation),
+# which silently broke ASR/OCR/Taigi TTS/rembg. Official Microsoft installer, signature checked.
+try {
+  $vf = "$tmp\vc_redist.$arch.exe"
+  & curl.exe -sSL --retry 5 --retry-all-errors -o $vf "https://aka.ms/vs/17/release/vc_redist.$arch.exe"
+  $vs = Get-AuthenticodeSignature $vf
+  if ($vs.Status -ne 'Valid' -or $vs.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw "download not a valid Microsoft-signed installer ($($vs.Status))" }
+  $vp = Start-Process $vf -ArgumentList '/install', '/quiet', '/norestart' -PassThru
+  [void]$vp.WaitForExit(600000)
+  L "[A3c] exit=$($vp.ExitCode) (0/3010 ok, 1638 newer present) msvcp140=$((Get-Item "$env:SystemRoot\System32\msvcp140.dll").VersionInfo.FileVersion)"
+} catch { L "[A3c] ERR $($_.Exception.Message)" }
+
 L '[A4] Chrome Remote Desktop host'
 if (-not (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe")) {
   try { Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/edgedl/chrome-remote-desktop/chromeremotedesktophost.msi' -OutFile "$tmp\crd.msi"; Start-Process msiexec.exe -ArgumentList '/i', "`"$tmp\crd.msi`"", '/qn', '/norestart' -Wait; L '[A4] ok' } catch { L "[A4] ERR $($_.Exception.Message)" }
