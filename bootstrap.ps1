@@ -155,9 +155,15 @@ if (-not (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\Curre
 
 L '[A4b] Google Drive for desktop (owner signs in from the tray icon; media lives on G:)'
 if (-not (Get-ChildItem "$env:ProgramFiles\Google\Drive File Stream\*\GoogleDriveFS.exe" -ErrorAction SilentlyContinue)) {
+  # 10/28 TCCC31: the office network cut the 44 MB download midway, so use curl.exe with retries and check the signature.
+  # Wait only for the installer process: -Wait would also wait for GoogleDriveFS.exe, which it starts and never exits.
   try {
-    Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/drive-file-stream/GoogleDriveSetup.exe' -OutFile "$tmp\gdrive.exe"
-    $p = Start-Process "$tmp\gdrive.exe" -ArgumentList '--silent', '--desktop_shortcut', '--gsuite_shortcuts=false' -Wait -PassThru
+    $f = "$tmp\gdrive.exe"; Remove-Item $f -ErrorAction SilentlyContinue
+    & curl.exe -sSL --retry 5 --retry-all-errors -o $f 'https://dl.google.com/drive-file-stream/GoogleDriveSetup.exe'
+    $sig = Get-AuthenticodeSignature $f
+    if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Google') { throw "download not a valid Google-signed installer ($($sig.Status))" }
+    $p = Start-Process $f -ArgumentList '--silent', '--desktop_shortcut', '--gsuite_shortcuts=false' -PassThru
+    [void]$p.WaitForExit(900000)
     L "[A4b] exit=$($p.ExitCode) installed=$([bool](Get-ChildItem "$env:ProgramFiles\Google\Drive File Stream\*\GoogleDriveFS.exe" -ErrorAction SilentlyContinue))"
   } catch { L "[A4b] ERR $($_.Exception.Message)" }
 } else { L '[A4b] present' }
