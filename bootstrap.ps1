@@ -90,7 +90,12 @@ try {
   L "[A2d] adapter=$($ifc.InterfaceAlias) gateway=$gw udpDns=$udpOk tcpDns=$tcpOk apply=$apply"
   if ($apply) {
     $before = (Get-DnsClientServerAddress -InterfaceAlias $ifc.InterfaceAlias -AddressFamily IPv4).ServerAddresses -join ','
-    Set-Content -Path "$state\dns_before.txt" -Value "$($ifc.InterfaceAlias) dns=$before (rollback: Set-DnsClientServerAddress -InterfaceAlias '$($ifc.InterfaceAlias)' -ResetServerAddresses)" -Encoding ascii
+    # Keep the first record only (a re-run would otherwise save our own 1.1.1.1/8.8.8.8 as "before").
+    if (-not (Test-Path "$state\dns_before.txt")) {
+      $dhcp = (Get-NetIPInterface -InterfaceAlias $ifc.InterfaceAlias -AddressFamily IPv4).Dhcp
+      $undo = if ("$dhcp" -eq 'Enabled' -or -not $before) { "Set-DnsClientServerAddress -InterfaceAlias '$($ifc.InterfaceAlias)' -ResetServerAddresses" } else { "Set-DnsClientServerAddress -InterfaceAlias '$($ifc.InterfaceAlias)' -ServerAddresses $before" }
+      Set-Content -Path "$state\dns_before.txt" -Value "$($ifc.InterfaceAlias) dns=$before dhcp=$dhcp (rollback: $undo)" -Encoding ascii
+    }
     foreach ($p in @(@('1.1.1.1', 'https://cloudflare-dns.com/dns-query'), @('8.8.8.8', 'https://dns.google/dns-query'))) {
       if (Get-DnsClientDohServerAddress -ServerAddress $p[0] -ErrorAction SilentlyContinue) { Set-DnsClientDohServerAddress -ServerAddress $p[0] -DohTemplate $p[1] -AllowFallbackToUdp $false -AutoUpgrade $true | Out-Null }
       else { Add-DnsClientDohServerAddress -ServerAddress $p[0] -DohTemplate $p[1] -AllowFallbackToUdp $false -AutoUpgrade $true | Out-Null }
