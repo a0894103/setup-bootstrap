@@ -55,6 +55,9 @@ Step 'Git (per-user)' { Test-Path "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" }
   Start-Process "$tmp\git.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NOCANCEL', "/DIR=$env:LOCALAPPDATA\Programs\Git" -Wait
   Add-UserPath "$env:LOCALAPPDATA\Programs\Git\cmd"
 }
+Step 'git core.longpaths' { (& "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" config --global core.longpaths) -eq 'true' } {
+  & "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" config --global core.longpaths true
+}
 Step 'Node 24.19.0' { Test-Path 'C:\WORK\TOOLS\nodejs\node.exe' } {
   $u = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-$arch.zip"; Get-File $u "$tmp\node.zip"
   Expand-Zip "$tmp\node.zip" $tmp; Move-Item "$tmp\node-v24.19.0-win-$arch" 'C:\WORK\TOOLS\nodejs'
