@@ -108,6 +108,20 @@ if (-not (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe')) {
   try { Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/chrome/install/latest/chrome_installer.exe' -OutFile "$tmp\chrome.exe"; Start-Process "$tmp\chrome.exe" -ArgumentList '/silent', '/install', '--do-not-launch-chrome' -Wait; L '[A3] ok' } catch { L "[A3] ERR $($_.Exception.Message)" }
 } else { L '[A3] present' }
 
+L '[A3b] Git (into the user folder, but the installer needs admin rights)'
+# 10/28 TCCC31: Git 2.56 writes HKLM keys even with /CURRENTUSER; run unelevated in setup-machine it waited ~160 s
+# for an elevation that never came and installed nothing. Elevated here it takes ~35 s. Same path as before.
+if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe")) {
+  try {
+    $rel = Invoke-RestMethod -UseBasicParsing -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest' -Headers @{ 'User-Agent' = 'bootstrap' }
+    $pat = if ($arch -eq 'arm64') { '^Git-.*-arm64\.exe$' } else { '^Git-.*-64-bit\.exe$' }
+    $u = ($rel.assets | Where-Object { $_.name -match $pat } | Select-Object -First 1).browser_download_url
+    Invoke-WebRequest -UseBasicParsing $u -OutFile "$tmp\git.exe"
+    $p = Start-Process "$tmp\git.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NOCANCEL', "/DIR=$env:LOCALAPPDATA\Programs\Git", "/LOG=$state\git-install.log" -Wait -PassThru
+    L "[A3b] exit=$($p.ExitCode) git=$(Test-Path "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe")"
+  } catch { L "[A3b] ERR $($_.Exception.Message)" }
+} else { L '[A3b] present' }
+
 # ---------- B. download this package and start setup-machine as the normal user ----------
 L '[B1] download setup package'
 try {
