@@ -64,6 +64,10 @@ Step 'Git (per-user)' { [bool](Find-Git) } {
   $g = Find-Git
   if ($g) { Add-UserPath (Split-Path $g); Log "  git at $g" }
 }
+Step 'git author (a0894103 noreply)' { $g = Find-Git; $g -and (& $g config --global user.email) } {
+  $g = Find-Git; if (-not $g) { throw 'git not installed (see the Git step)' }
+  & $g config --global user.name 'a0894103'; & $g config --global user.email 'a0894103@users.noreply.github.com'
+}
 Step 'git core.longpaths' { $g = Find-Git; $g -and ((& $g config --global core.longpaths) -eq 'true') } {
   $g = Find-Git; if (-not $g) { throw 'git not installed (see the Git step)' }
   & $g config --global core.longpaths true
