@@ -42,6 +42,8 @@ if (-not $pid1) { $pid1 = (Get-ItemProperty "$https\UserChoice" -ErrorAction Sil
 if ($pid1 -like 'ChromeHTML*') { Row 'base' 'Chrome is default browser' 'PASS' $pid1 } else { Row 'base' 'Chrome is default browser' 'FAIL' "current: $pid1 (Settings > Apps > Default apps > Chrome)" }
 $crd ="${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe"
 if (Test-Path $crd) { Row 'base' 'Chrome Remote Desktop host' 'PASS' $crd } else { Row 'base' 'Chrome Remote Desktop host' 'FAIL' 'remoting_host.exe not found' }
+$gd = Get-ChildItem "$env:ProgramFiles\Google\Drive File Stream\*\GoogleDriveFS.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($gd) { Row 'base' 'Google Drive for desktop' 'PASS' $gd.FullName } else { Row 'base' 'Google Drive for desktop' 'FAIL' 'GoogleDriveFS.exe not found (bootstrap A4b)' }
 $crdSvc = Get-Service -Name 'chromoting' -ErrorAction SilentlyContinue
 if ($crdSvc -and $crdSvc.Status -eq 'Running') { Row 'base' 'Remote access enabled (PIN)' 'PASS' 'chromoting service running' } else { Row 'base' 'Remote access enabled (PIN)' 'MANUAL' 'owner enables at remotedesktop.google.com/access' }
 $ghOk = $false; try { & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) } catch { }
