@@ -202,6 +202,21 @@ if ($Roles -contains 'dev') {
     Get-File "https://go.dev/dl/go1.27.0.windows-$ga.zip" "$tmp\go.zip"
     Expand-Zip "$tmp\go.zip" 'C:\WORK\TOOLS'; Add-UserPath 'C:\WORK\TOOLS\go\bin'
   }
+  # 10/28 TCCC11 reinstall: `go test -race` (full verify) needs cgo and a C compiler; Go's race detector has no windows/arm64 build.
+  if ($arch -ne 'arm64') {
+    Step 'gcc (WinLibs MinGW-w64 UCRT, for go -race)' { Test-Path 'C:\WORK\TOOLS\gcc\bin\gcc.exe' } {
+      $rel = Invoke-RestMethod -UseBasicParsing -Uri 'https://api.github.com/repos/brechtsanders/winlibs_mingw/releases/latest' -Headers @{ 'User-Agent' = 'setup-machine' }
+      $z = $rel.assets | Where-Object { $_.name -match '^winlibs-x86_64-posix-seh-gcc-.*-mingw-w64ucrt-.*\.zip$' } | Select-Object -First 1
+      $h = $rel.assets | Where-Object { $_.name -eq "$($z.name).sha256" } | Select-Object -First 1
+      & curl.exe -sSL --retry 5 --retry-all-errors -o "$tmp\gcc.zip" $z.browser_download_url
+      $want = ((Invoke-RestMethod -UseBasicParsing -Uri $h.browser_download_url) -split '\s+')[0].ToUpper()
+      $got = (Get-FileHash "$tmp\gcc.zip" -Algorithm SHA256).Hash
+      if ($want -ne $got) { throw "gcc zip sha256 mismatch ($got)" }
+      Expand-Zip "$tmp\gcc.zip" "$tmp\gcc"; Move-Item "$tmp\gcc\mingw64" 'C:\WORK\TOOLS\gcc'
+      Add-UserPath 'C:\WORK\TOOLS\gcc\bin'
+      [Environment]::SetEnvironmentVariable('CGO_ENABLED', '1', 'User')
+    }
+  }
 }
 
 $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object { Log $_ }
