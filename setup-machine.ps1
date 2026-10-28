@@ -49,14 +49,24 @@ $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
 Log "roles=$($Roles -join ',') arch=$arch user=$env:USERNAME"
 
 # ---------- base (chapter 0-3) ----------
-Step 'Git (per-user)' { Test-Path "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" } {
+# 10/28 TCCC31: the per-user install ran 162 s but git.exe was not at the expected path, so look in every usual place.
+function Find-Git {
+  foreach ($p in @("$env:LOCALAPPDATA\Programs\Git\cmd\git.exe", "$env:ProgramFiles\Git\cmd\git.exe")) { if (Test-Path $p) { return $p } }
+  $c = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($c) { return $c.Source }
+  $null
+}
+Step 'Git (per-user)' { [bool](Find-Git) } {
   $pat = if ($arch -eq 'arm64') { '^Git-.*-arm64\.exe$' } else { '^Git-.*-64-bit\.exe$' }
   $u = Latest-GitHubAsset 'git-for-windows/git' $pat; Get-File $u "$tmp\git.exe"
-  Start-Process "$tmp\git.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NOCANCEL', "/DIR=$env:LOCALAPPDATA\Programs\Git" -Wait
-  Add-UserPath "$env:LOCALAPPDATA\Programs\Git\cmd"
+  $p = Start-Process "$tmp\git.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NOCANCEL', "/DIR=$env:LOCALAPPDATA\Programs\Git", "/LOG=$LogDir\git-install.log" -Wait -PassThru
+  Log "  git installer exit=$($p.ExitCode) (log: $LogDir\git-install.log)"
+  $g = Find-Git
+  if ($g) { Add-UserPath (Split-Path $g); Log "  git at $g" }
 }
-Step 'git core.longpaths' { (& "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" config --global core.longpaths) -eq 'true' } {
-  & "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" config --global core.longpaths true
+Step 'git core.longpaths' { $g = Find-Git; $g -and ((& $g config --global core.longpaths) -eq 'true') } {
+  $g = Find-Git; if (-not $g) { throw 'git not installed (see the Git step)' }
+  & $g config --global core.longpaths true
 }
 Step 'Node 24.19.0' { Test-Path 'C:\WORK\TOOLS\nodejs\node.exe' } {
   $u = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-$arch.zip"; Get-File $u "$tmp\node.zip"
@@ -150,7 +160,7 @@ if ($needLogin) {
 } else {
 if ($RepoSource -like 'https://*') { & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth setup-git 2>&1 | ForEach-Object { Log "  $_" } }
 Step 'AI_AGENT_ULTRA clone' { Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git' } {
-  & "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe" -c safe.directory=* clone $RepoSource 'C:\WORK\AI\AI_AGENT_ULTRA' 2>&1 | ForEach-Object { Log "  $_" }
+  & (Find-Git) -c safe.directory=* clone $RepoSource 'C:\WORK\AI\AI_AGENT_ULTRA' 2>&1 | ForEach-Object { Log "  $_" }
 }
 Step 'AutoPull task' { [bool](Get-ScheduledTask -TaskName 'AI_AGENT_ULTRA_AutoPull' -ErrorAction SilentlyContinue) } {
   & powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\WORK\AI\AI_AGENT_ULTRA\tools\install-auto-pull-task.ps1' 2>&1 | ForEach-Object { Log "  $_" }
