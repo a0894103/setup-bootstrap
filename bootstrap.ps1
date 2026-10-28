@@ -5,7 +5,7 @@
 #                           $Site = 'company' | 'home'  (default auto: office gateway or blocked UDP DNS -> DNS over HTTPS)
 # What it does:
 #   A. everything that needs administrator rights, once: OpenSSH for tezhu, Developer Mode, Chrome,
-#      Chrome Remote Desktop host, Codex App license provisioning, and VS Build Tools for the build role.
+#      Chrome Remote Desktop host, Google Drive for desktop, Codex App license provisioning, and VS Build Tools for the build role.
 #   B. downloads this public package to C:\WORK\setup and starts setup-machine.ps1 as the normal user
 #      (user-level installs, then the setup console opens in Chrome).
 # ASCII only. No secrets in this package (tezhu's SSH key below is a PUBLIC key).
@@ -152,6 +152,15 @@ L '[A4] Chrome Remote Desktop host'
 if (-not (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe")) {
   try { Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/edgedl/chrome-remote-desktop/chromeremotedesktophost.msi' -OutFile "$tmp\crd.msi"; Start-Process msiexec.exe -ArgumentList '/i', "`"$tmp\crd.msi`"", '/qn', '/norestart' -Wait; L '[A4] ok' } catch { L "[A4] ERR $($_.Exception.Message)" }
 } else { L '[A4] present' }
+
+L '[A4b] Google Drive for desktop (owner signs in from the tray icon; media lives on G:)'
+if (-not (Get-ChildItem "$env:ProgramFiles\Google\Drive File Stream\*\GoogleDriveFS.exe" -ErrorAction SilentlyContinue)) {
+  try {
+    Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/drive-file-stream/GoogleDriveSetup.exe' -OutFile "$tmp\gdrive.exe"
+    $p = Start-Process "$tmp\gdrive.exe" -ArgumentList '--silent', '--desktop_shortcut', '--gsuite_shortcuts=false' -Wait -PassThru
+    L "[A4b] exit=$($p.ExitCode) installed=$([bool](Get-ChildItem "$env:ProgramFiles\Google\Drive File Stream\*\GoogleDriveFS.exe" -ErrorAction SilentlyContinue))"
+  } catch { L "[A4b] ERR $($_.Exception.Message)" }
+} else { L '[A4b] present' }
 
 L '[A5] Codex App (official MSIX + license, provisioned)'
 if (-not (Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq 'OpenAI.Codex' })) {
