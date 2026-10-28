@@ -48,6 +48,16 @@ try {
 L '[A2] Developer Mode'
 try { New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null; L '[A2] ok' } catch { L "[A2] ERR $($_.Exception.Message)" }
 
+L '[A2b] Microsoft Defender exclusions for build/test folders'
+# Owner 10/28: TCCC11 lagged with MsMpEng at ~2 cores scanning every file our builds/tests write (no exclusions set).
+# Real-time protection stays on; only these work folders are skipped. Owner runs this script as administrator himself.
+try {
+  $ex = @('C:\WORK', "$env:LOCALAPPDATA\go-build", "$env:USERPROFILE\go\pkg\mod", "$env:USERPROFILE\.nuget\packages")
+  $have = @((Get-MpPreference).ExclusionPath)
+  foreach ($p in $ex) { if ($have -notcontains $p) { Add-MpPreference -ExclusionPath $p } }
+  L ('[A2b] ok: ' + ((Get-MpPreference).ExclusionPath -join '; '))
+} catch { L "[A2b] ERR $($_.Exception.Message)" }
+
 L '[A3] Chrome'
 if (-not (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe')) {
   try { Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/chrome/install/latest/chrome_installer.exe' -OutFile "$tmp\chrome.exe"; Start-Process "$tmp\chrome.exe" -ArgumentList '/silent', '/install', '--do-not-launch-chrome' -Wait; L '[A3] ok' } catch { L "[A3] ERR $($_.Exception.Message)" }
