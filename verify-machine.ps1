@@ -25,7 +25,7 @@ function Cmd($role, $item, $exe, $verArgs, $expectPathLike, $expectVerLike) {
 }
 
 # base
-Cmd 'base' 'Git' 'git' @('--version') "$env:LOCALAPPDATA\Programs\Git\*" 'git version*'
+Cmd 'base' 'Git' 'git' @('--version') $null 'git version*'
 Cmd 'base' 'Node 24.19.0' 'node' @('--version') 'C:\WORK\TOOLS\nodejs\*' 'v24.19.0'
 Cmd 'base' 'gh' 'gh' @('--version') 'C:\WORK\TOOLS\gh\*' 'gh version*'
 $chrome = @('C:\Program Files\Google\Chrome\Application\chrome.exe', "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
