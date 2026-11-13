@@ -38,7 +38,7 @@ try {
   if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) { Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null }
   Set-Service sshd -StartupType Automatic; Start-Service sshd
   $k = 'C:\ProgramData\ssh\administrators_authorized_keys'
-  Set-Content -Path $k -Value @('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIaj52dCYwhuTRN7TOY2FwkkS1yPQhl5KzsRlhXPqhGX tezhu@TCCC21', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM6AzJ8aDvYElXj8cWnnERsMQH/kiYd8kBgbrDD6ra+B tezhu@TCCC11') -Encoding ascii
+  Set-Content -Path $k -Value @('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIaj52dCYwhuTRN7TOY2FwkkS1yPQhl5KzsRlhXPqhGX tezhu@TCCC21', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM6AzJ8aDvYElXj8cWnnERsMQH/kiYd8kBgbrDD6ra+B tezhu@TCCC11', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFf0IyAXRq4J8dNPVPZz+q1rU6wyHYnHtiRWyeIv/dm tezhu@TCCC22') -Encoding ascii
   icacls $k /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null
   New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -PropertyType String -Force | Out-Null
   Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue | Disable-NetFirewallRule
@@ -82,29 +82,35 @@ L "[A2d] DNS over HTTPS (Site=$Site)"
 # over HTTPS. Site 'company' always applies it, 'home' never does, 'auto' applies it on the office gateway or whenever
 # UDP DNS fails while TCP DNS works. It keeps working on any other network, so a laptop moved home later is fine.
 try {
-  $ifc = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Where-Object { $_.InterfaceAlias -notmatch 'Tailscale' } | Sort-Object RouteMetric | Select-Object -First 1)
-  $gw = "$($ifc.NextHop)"
+  # Every adapter with a default route (10/30: TCCC11/12 had Wi-Fi AND Ethernet on 192.168.50.x; only the first got DoH,
+  # the cable kept the router DNS and every lookup came back 10.0.0.1 again).
+  $ifcs = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Where-Object { $_.InterfaceAlias -notmatch 'Tailscale' } | Sort-Object RouteMetric)
   $udpOk = $true; try { Resolve-DnsName github.com -DnsOnly -QuickTimeout -ErrorAction Stop | Out-Null } catch { $udpOk = $false }
   $tcpOk = $true; try { Resolve-DnsName github.com -DnsOnly -TcpOnly -QuickTimeout -ErrorAction Stop | Out-Null } catch { $tcpOk = $false }
-  $apply = ($Site -eq 'company') -or ($Site -eq 'auto' -and ($gw -like '192.168.50.*' -or (-not $udpOk -and $tcpOk)))
-  L "[A2d] adapter=$($ifc.InterfaceAlias) gateway=$gw udpDns=$udpOk tcpDns=$tcpOk apply=$apply"
+  $anyOffice = @($ifcs | Where-Object { "$($_.NextHop)" -like '192.168.50.*' }).Count -gt 0
+  $apply = ($Site -eq 'company') -or ($Site -eq 'auto' -and ($anyOffice -or (-not $udpOk -and $tcpOk)))
+  L "[A2d] adapters=$(($ifcs | ForEach-Object { "$($_.InterfaceAlias)/$($_.NextHop)" }) -join ' ') udpDns=$udpOk tcpDns=$tcpOk apply=$apply"
   if ($apply) {
-    $before = (Get-DnsClientServerAddress -InterfaceAlias $ifc.InterfaceAlias -AddressFamily IPv4).ServerAddresses -join ','
-    # Keep the first record only (a re-run would otherwise save our own 1.1.1.1/8.8.8.8 as "before").
-    if (-not (Test-Path "$state\dns_before.txt")) {
-      $dhcp = (Get-NetIPInterface -InterfaceAlias $ifc.InterfaceAlias -AddressFamily IPv4).Dhcp
-      $undo = if ("$dhcp" -eq 'Enabled' -or -not $before) { "Set-DnsClientServerAddress -InterfaceAlias '$($ifc.InterfaceAlias)' -ResetServerAddresses" } else { "Set-DnsClientServerAddress -InterfaceAlias '$($ifc.InterfaceAlias)' -ServerAddresses $before" }
-      Set-Content -Path "$state\dns_before.txt" -Value "$($ifc.InterfaceAlias) dns=$before dhcp=$dhcp (rollback: $undo)" -Encoding ascii
-    }
     foreach ($p in @(@('1.1.1.1', 'https://cloudflare-dns.com/dns-query'), @('8.8.8.8', 'https://dns.google/dns-query'))) {
       if (Get-DnsClientDohServerAddress -ServerAddress $p[0] -ErrorAction SilentlyContinue) { Set-DnsClientDohServerAddress -ServerAddress $p[0] -DohTemplate $p[1] -AllowFallbackToUdp $false -AutoUpgrade $true | Out-Null }
       else { Add-DnsClientDohServerAddress -ServerAddress $p[0] -DohTemplate $p[1] -AllowFallbackToUdp $false -AutoUpgrade $true | Out-Null }
     }
-    Set-DnsClientServerAddress -InterfaceAlias $ifc.InterfaceAlias -ServerAddresses @('1.1.1.1', '8.8.8.8')
+    $rec = if (Test-Path "$state\dns_before.txt") { Get-Content "$state\dns_before.txt" -Raw } else { '' }
+    foreach ($a in ($ifcs | Select-Object -ExpandProperty InterfaceAlias -Unique)) {
+      $before = (Get-DnsClientServerAddress -InterfaceAlias $a -AddressFamily IPv4).ServerAddresses -join ','
+      # Keep the first record per adapter (a re-run would otherwise save our own 1.1.1.1/8.8.8.8 as "before").
+      if ($rec -notmatch [regex]::Escape("$a dns=")) {
+        $dhcp = (Get-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4).Dhcp
+        $undo = if ("$dhcp" -eq 'Enabled' -or -not $before) { "Set-DnsClientServerAddress -InterfaceAlias '$a' -ResetServerAddresses" } else { "Set-DnsClientServerAddress -InterfaceAlias '$a' -ServerAddresses $before" }
+        Add-Content -Path "$state\dns_before.txt" -Value "$a dns=$before dhcp=$dhcp (rollback: $undo)" -Encoding ascii
+      }
+      Set-DnsClientServerAddress -InterfaceAlias $a -ServerAddresses @('1.1.1.1', '8.8.8.8')
+      L "[A2d] $a set (was $before)"
+    }
     netsh dns set global doh=yes | Out-Null
     ipconfig /flushdns | Out-Null
     Start-Sleep 2
-    try { Resolve-DnsName github.com -ErrorAction Stop | Out-Null; L "[A2d] ok (was $before)" } catch { L "[A2d] ERR lookup still failing: $($_.Exception.Message)" }
+    try { Resolve-DnsName github.com -ErrorAction Stop | Out-Null; L '[A2d] ok' } catch { L "[A2d] ERR lookup still failing: $($_.Exception.Message)" }
   } else { L '[A2d] skipped' }
 } catch { L "[A2d] ERR $($_.Exception.Message)" }
 
