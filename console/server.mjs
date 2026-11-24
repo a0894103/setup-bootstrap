@@ -175,8 +175,9 @@ function checkGhAuth(ghExe) {
       const accounts = [];
       const lines = output.split(/\r?\n/);
       for (const line of lines) {
-        // 匹配 "Logged in to github.com account <username>" 或 "as <username>"
-        const match = line.match(/(?:Logged in to [^\s]+ (?:account|as)|(?:account|as))\s+([A-Za-z0-9_.-]+)/i);
+        // 只認 "Logged in to github.com account <username>"；"Failed to log in to ... account <username>"（token 失效）不算
+        // （2026-10-29 TCCC31：token 失效仍顯示已登入，推送與 git pull 全失敗）
+        const match = line.match(/Logged in to \S+ (?:account|as)\s+([A-Za-z0-9_.-]+)/i);
         if (match && match[1]) {
           const acc = match[1].trim();
           // 過濾非帳號的關鍵字如 true, https, token 等
@@ -189,7 +190,8 @@ function checkGhAuth(ghExe) {
       }
       resolve({
         installed: true,
-        loggedIn: accounts.length > 0,
+        loggedIn: !error && accounts.length > 0,
+        expired: /Failed to log in|token in \S+ is invalid/i.test(output),
         accounts
       });
     });

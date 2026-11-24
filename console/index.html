@@ -745,6 +745,9 @@
         const accs = data.gh.accounts.join(', ') || '已登入';
         ghText.innerHTML = `已登入帳號：<strong>${escapeHtml(accs)}</strong>`;
         cloneBtn.disabled = false;
+      } else if (data.gh.expired) {
+        ghText.innerHTML = '<span class="badge badge-yellow">GitHub 登入已失效，請按「GitHub 登入」重新登入</span>';
+        cloneBtn.disabled = true;
       } else {
         ghText.innerHTML = '<span class="badge badge-yellow">尚未登入 GitHub</span>';
         cloneBtn.disabled = true;
