@@ -188,6 +188,24 @@ if ($Roles -contains 'user' -or $Roles -contains 'dev') {
   Step 'Codex CLI' { Test-Path "$env:APPDATA\npm\codex.cmd" } {
     & 'C:\WORK\TOOLS\nodejs\npm.cmd' install -g --prefix "$env:APPDATA\npm" '@openai/codex' 2>&1 | ForEach-Object { Log "  $_" }
   }
+  # Claude Code loads the shared rules (AGENTS.md + CLAUDE.md) only through this one-line global import.
+  # BOM-less UTF-8: a BOM can break the leading @ import. Keeps any other lines already in the file.
+  $claudeMd = "$env:USERPROFILE\.claude\CLAUDE.md"
+  $importLine = '@C:/WORK/AI/AI_AGENT_ULTRA/CLAUDE.md'
+  Step 'Claude global rules (~/.claude/CLAUDE.md import)' { (Test-Path $claudeMd) -and ((Get-Content $claudeMd -Raw) -match [regex]::Escape($importLine)) } {
+    New-Item -ItemType Directory -Force (Split-Path $claudeMd) | Out-Null
+    $old = if (Test-Path $claudeMd) { [IO.File]::ReadAllText($claudeMd).TrimStart([char]0xFEFF) } else { '' }
+    [IO.File]::WriteAllText($claudeMd, ($importLine + "`n" + $old), (New-Object Text.UTF8Encoding $false))
+  }
+  # AGENTS.md 1.3: Codex default model gpt-6.2-sol (needs Codex CLI 0.170.0+, installed above from npm latest).
+  $codexCfg = "$env:USERPROFILE\.codex\config.toml"
+  Step 'Codex default model gpt-6.2-sol' { (Test-Path $codexCfg) -and ((Get-Content $codexCfg -Raw) -match '(?m)^\s*model\s*=\s*"gpt-6\.2-sol"') } {
+    New-Item -ItemType Directory -Force (Split-Path $codexCfg) | Out-Null
+    $lines = @(); if (Test-Path $codexCfg) { $lines = @(Get-Content $codexCfg) }
+    $top = @(); $rest = @(); $inTable = $false
+    foreach ($l in $lines) { if ($l -match '^\s*\[') { $inTable = $true }; if (-not $inTable -and $l -match '^\s*model\s*=') { continue }; if ($inTable) { $rest += $l } else { $top += $l } }
+    [IO.File]::WriteAllText($codexCfg, ((@('model = "gpt-6.2-sol"') + $top + $rest) -join "`n") + "`n", (New-Object Text.UTF8Encoding $false))
+  }
   Step 'AGY CLI' { Test-Path "$env:LOCALAPPDATA\agy\bin\agy.exe" } {
     & powershell -NoProfile -ExecutionPolicy Bypass -Command 'irm https://antigravity.google/cli/install.ps1 | iex' 2>&1 | ForEach-Object { Log "  $_" }
   }

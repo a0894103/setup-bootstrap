@@ -26,7 +26,7 @@ function Cmd($role, $item, $exe, $verArgs, $expectPathLike, $expectVerLike) {
 
 # base
 Cmd 'base' 'Git' 'git' @('--version') $null 'git version*'
-Cmd 'base' 'Node 24.19.0' 'node' @('--version') 'C:\WORK\TOOLS\nodejs\*' 'v24.19.0'
+Cmd 'base' 'Node 24' 'node' @('--version') 'C:\WORK\TOOLS\nodejs\*' 'v24.*'
 Cmd 'base' 'gh' 'gh' @('--version') 'C:\WORK\TOOLS\gh\*' 'gh version*'
 $chrome = @('C:\Program Files\Google\Chrome\Application\chrome.exe', "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($chrome) { Row 'base' 'Chrome' 'PASS' $chrome } else { Row 'base' 'Chrome' 'FAIL' 'chrome.exe not found' }
@@ -46,6 +46,17 @@ $gd = Get-ChildItem "$env:ProgramFiles\Google\Drive File Stream\*\GoogleDriveFS.
 if ($gd) { Row 'base' 'Google Drive for desktop' 'PASS' $gd.FullName } else { Row 'base' 'Google Drive for desktop' 'FAIL' 'GoogleDriveFS.exe not found (bootstrap A4b)' }
 $crdSvc = Get-Service -Name 'chromoting' -ErrorAction SilentlyContinue
 if ($crdSvc -and $crdSvc.Status -eq 'Running') { Row 'base' 'Remote access enabled (PIN)' 'PASS' 'chromoting service running' } else { Row 'base' 'Remote access enabled (PIN)' 'MANUAL' 'owner enables at remotedesktop.google.com/access' }
+# tezhu can only reach a machine when Tailscale is signed in and sshd runs (bootstrap A0/A1).
+$ts = 'C:\Program Files\Tailscale\tailscale.exe'
+if (-not (Test-Path $ts)) { Row 'base' 'Tailscale signed in' 'FAIL' 'tailscale.exe not found (bootstrap A0)' }
+else {
+  $tsState = ''; try { $tsState = ((& $ts status --json 2>$null | Out-String) | ConvertFrom-Json).BackendState } catch { }
+  if ($tsState -eq 'Running') { Row 'base' 'Tailscale signed in' 'PASS' 'BackendState=Running' } else { Row 'base' 'Tailscale signed in' 'MANUAL' "state=${tsState}; owner signs in from the tray icon" }
+}
+$sshd = Get-Service -Name sshd -ErrorAction SilentlyContinue
+if ($sshd -and $sshd.Status -eq 'Running' -and $sshd.StartType -eq 'Automatic') { Row 'base' 'OpenSSH server (tezhu)' 'PASS' 'sshd running, automatic' }
+elseif ($sshd) { Row 'base' 'OpenSSH server (tezhu)' 'FAIL' "sshd $($sshd.Status)/$($sshd.StartType): re-run bootstrap (admin)" }
+else { Row 'base' 'OpenSSH server (tezhu)' 'FAIL' 'sshd not installed: re-run bootstrap (admin)' }
 $ghOk = $false; try { & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) } catch { }
 if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git') { Row 'base' 'AI_AGENT_ULTRA clone' 'PASS' ((git -C 'C:\WORK\AI\AI_AGENT_ULTRA' log -1 --format='%h %cd' --date=short 2>$null) -join '') }
 elseif (-not $ghOk) { Row 'base' 'AI_AGENT_ULTRA clone' 'WAIT' 'gh not logged in: setup console > GitHub login > pull AI_AGENT_ULTRA' }
@@ -70,6 +81,11 @@ if ($Roles -contains 'user' -or $Roles -contains 'dev') {
   if (Test-Path "$env:USERPROFILE\.claude\.credentials.json") { Row 'user' 'Claude seat1 login' 'PASS' 'credentials present (not read)' } else { Row 'user' 'Claude seat1 login' 'WAIT' 'setup console > seat 1 login' }
   if (Test-Path "$env:USERPROFILE\.codex\auth.json") { Row 'user' 'Codex login' 'PASS' 'auth present (not read)' } else { Row 'user' 'Codex login' 'WAIT' 'setup console > Codex login' }
   Row 'user' 'AGY / Antigravity App login' 'MANUAL' 'owner signs in to the Antigravity App'
+  # Claude only loads AGENTS.md/CLAUDE.md rules through this one-line import (setup-machine step 'Claude global rules').
+  $cm = "$env:USERPROFILE\.claude\CLAUDE.md"
+  if ((Test-Path $cm) -and ((Get-Content $cm -Raw) -match '@C:/WORK/AI/AI_AGENT_ULTRA/CLAUDE\.md')) { Row 'user' 'Claude global rules import' 'PASS' $cm } else { Row 'user' 'Claude global rules import' 'FAIL' "$cm lacks @C:/WORK/AI/AI_AGENT_ULTRA/CLAUDE.md (re-run setup-machine)" }
+  $cx = "$env:USERPROFILE\.codex\config.toml"
+  if ((Test-Path $cx) -and ((Get-Content $cx -Raw) -match '(?m)^\s*model\s*=\s*"gpt-6\.2-sol"')) { Row 'user' 'Codex default model gpt-6.2-sol' 'PASS' $cx } else { Row 'user' 'Codex default model gpt-6.2-sol' 'FAIL' "$cx has no model = `"gpt-6.2-sol`" (re-run setup-machine)" }
 }
 if ($Roles -contains 'dev') {
   # AutoConverter machines: its installer puts an embedded Python at C:\WORK\TOOLS\python first on PATH on purpose.
