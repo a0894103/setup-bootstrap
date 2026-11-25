@@ -57,6 +57,8 @@ $sshd = Get-Service -Name sshd -ErrorAction SilentlyContinue
 if ($sshd -and $sshd.Status -eq 'Running' -and $sshd.StartType -eq 'Automatic') { Row 'base' 'OpenSSH server (tezhu)' 'PASS' 'sshd running, automatic' }
 elseif ($sshd) { Row 'base' 'OpenSSH server (tezhu)' 'FAIL' "sshd $($sshd.Status)/$($sshd.StartType): re-run bootstrap (admin)" }
 else { Row 'base' 'OpenSSH server (tezhu)' 'FAIL' 'sshd not installed: re-run bootstrap (admin)' }
+$sshOpt = (Get-ItemProperty 'HKLM:\SOFTWARE\OpenSSH' -ErrorAction SilentlyContinue).DefaultShellCommandOption
+if ($sshOpt -match 'UTF8Encoding') { Row 'base' 'SSH UTF-8 output' 'PASS' 'DefaultShellCommandOption sets UTF-8' } else { Row 'base' 'SSH UTF-8 output' 'FAIL' 'Chinese output over SSH will be mojibake: re-run bootstrap (admin)' }
 $ghOk = $false; try { & 'C:\WORK\TOOLS\gh\bin\gh.exe' auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) } catch { }
 if (Test-Path 'C:\WORK\AI\AI_AGENT_ULTRA\.git') { Row 'base' 'AI_AGENT_ULTRA clone' 'PASS' ((git -C 'C:\WORK\AI\AI_AGENT_ULTRA' log -1 --format='%h %cd' --date=short 2>$null) -join '') }
 elseif (-not $ghOk) { Row 'base' 'AI_AGENT_ULTRA clone' 'WAIT' 'gh not logged in: setup console > GitHub login > pull AI_AGENT_ULTRA' }

@@ -41,6 +41,8 @@ try {
   Set-Content -Path $k -Value @('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIaj52dCYwhuTRN7TOY2FwkkS1yPQhl5KzsRlhXPqhGX tezhu@TCCC21', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM6AzJ8aDvYElXj8cWnnERsMQH/kiYd8kBgbrDD6ra+B tezhu@TCCC11', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFf0IyAXRq4J8dNPVPZz+q1rU6wyHYnHtiRWyeIv/dm tezhu@TCCC22') -Encoding ascii
   icacls $k /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null
   New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -PropertyType String -Force | Out-Null
+  # SSH commands get UTF-8 console output (sshd prepends this to every remote command); fixes Chinese mojibake over SSH (2026-11-25)
+  New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShellCommandOption -Value 'try{[Console]::OutputEncoding=(New-Object System.Text.UTF8Encoding $false)}catch{};$OutputEncoding=[Console]::OutputEncoding;' -PropertyType String -Force | Out-Null
   Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue | Disable-NetFirewallRule
   if (-not (Get-NetFirewallRule -Name 'sshd-tailscale' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -Name 'sshd-tailscale' -DisplayName 'OpenSSH (Tailscale only)' -Direction Inbound -Protocol TCP -LocalPort 22 -RemoteAddress 100.64.0.0/10 -Action Allow | Out-Null }
   powercfg /change standby-timeout-ac 0
